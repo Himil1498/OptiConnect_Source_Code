@@ -13,7 +13,7 @@ const getAllGroups = async (req, res) => {
       `SELECT g.*,
               COUNT(DISTINCT gm.id) as member_count,
               gm2.role as user_role
-       FROM groups g
+       FROM \`groups\` g
        LEFT JOIN group_members gm ON g.id = gm.group_id
        INNER JOIN group_members gm2 ON g.id = gm2.group_id AND gm2.user_id = ?
        GROUP BY g.id, gm2.role
@@ -52,7 +52,7 @@ const getGroupById = async (req, res) => {
       `SELECT g.*,
               u.username as owner_username,
               u.full_name as owner_name
-       FROM groups g
+       FROM \`groups\` g
        INNER JOIN users u ON g.owner_id = u.id
        WHERE g.id = ?`,
       [id]
@@ -88,7 +88,7 @@ const createGroup = async (req, res) => {
 
     // Create group
     const [result] = await pool.query(
-      `INSERT INTO groups (name, description, owner_id, is_public)
+      `INSERT INTO \`groups\` (name, description, owner_id, is_public)
        VALUES (?, ?, ?, ?)`,
       [name, description, userId, is_public || false]
     );
@@ -130,7 +130,7 @@ const updateGroup = async (req, res) => {
 
     // Check if user is owner
     const [groups] = await pool.query(
-      'SELECT owner_id FROM groups WHERE id = ?',
+      'SELECT owner_id FROM `groups` WHERE id = ?',
       [id]
     );
 
@@ -166,7 +166,7 @@ const updateGroup = async (req, res) => {
     params.push(id);
 
     await pool.query(
-      `UPDATE groups SET ${updates.join(', ')} WHERE id = ?`,
+      `UPDATE \`groups\` SET ${updates.join(', ')} WHERE id = ?`,
       params
     );
 
@@ -189,7 +189,7 @@ const deleteGroup = async (req, res) => {
 
     // Check if user is owner
     const [groups] = await pool.query(
-      'SELECT owner_id FROM groups WHERE id = ?',
+      'SELECT owner_id FROM `groups` WHERE id = ?',
       [id]
     );
 
@@ -201,7 +201,7 @@ const deleteGroup = async (req, res) => {
       return res.status(403).json({ success: false, error: 'Only owner can delete group' });
     }
 
-    await pool.query('DELETE FROM groups WHERE id = ?', [id]);
+    await pool.query('DELETE FROM `groups` WHERE id = ?', [id]);
 
     res.json({ success: true, message: 'Group deleted successfully' });
   } catch (error) {
@@ -376,7 +376,7 @@ const updateMemberRole = async (req, res) => {
 
     // Check if requester is owner
     const [groups] = await pool.query(
-      'SELECT owner_id FROM groups WHERE id = ?',
+      'SELECT owner_id FROM `groups` WHERE id = ?',
       [id]
     );
 
