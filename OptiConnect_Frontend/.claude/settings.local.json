@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(set PORT=3001)",
+      "Bash(npm start)",
+      "Bash(cross-env:*)",
+      "Bash(del \"C:\\Users\\hkcha\\OneDrive\\Desktop\\PersonalGIS\\src\\contexts\\GoogleMapsContext.tsx.bak\")",
+      "Bash(set PORT=3002)",
+      "Bash(git reset:*)",
+      "Bash(tasklist)",
+      "Bash(move PHASE_7_IMPLEMENTATION_PLAN.md PHASE_6_GLOBAL_SEARCH_PLAN.md)",
+      "Bash(ren:*)",
+      "Bash(if exist \"src\\components\\search\" dir /b srccomponentssearch)",
+      "Bash(mv:*)",
+      "Bash(taskkill:*)",
+      "Bash(del srcstoreslicestoolStateSlice.ts)",
+      "Bash(del srccomponentscommonResumeDialog.tsx)",
+      "Bash(del srchooksuseToolState.ts)",
+      "Bash(git restore:*)",
+      "Bash(if not exist \"C:\\Users\\hkcha\\OneDrive\\Desktop\\PersonalGIS\\src\\components\\groups\" mkdir \"C:\\Users\\hkcha\\OneDrive\\Desktop\\PersonalGIS\\src\\components\\groups\")",
+      "Bash(cmd /c:*)",
+      "Bash(for file in DistanceMeasurementTool.tsx PolygonDrawingTool.tsx CircleDrawingTool.tsx ElevationProfileTool.tsx InfrastructureManagementTool.tsx)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
