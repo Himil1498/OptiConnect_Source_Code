@@ -82,10 +82,17 @@ apiClient.interceptors.response.use(
   (error: any) => {
     // Handle common errors
     if (error.response?.status === 401) {
-      // Unauthorized - clear local storage and redirect to login
-      localStorage.removeItem('opti_connect_token');
-      localStorage.removeItem('opti_connect_user');
-      window.location.href = '/login';
+      // Unauthorized - LOG ONLY, DO NOT AUTO-LOGOUT
+      // Let the calling code decide whether to logout
+      // This prevents auto-logout on token refresh/verification failures
+      console.warn('⚠️ 401 Unauthorized - Request failed but session remains active');
+      console.warn('Request URL:', error.config?.url);
+
+      // ONLY logout on login endpoint failures (not token verify/refresh)
+      if (error.config?.url?.includes('/auth/login')) {
+        console.error('Login failed');
+      }
+      // DO NOT clear storage or redirect - let session persist
     }
 
     if (error.response?.status === 403) {

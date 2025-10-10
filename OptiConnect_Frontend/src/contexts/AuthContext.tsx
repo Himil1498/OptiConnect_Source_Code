@@ -25,56 +25,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dispatch = useAppDispatch();
   const { user, isAuthenticated, isLoading, error, token } = useAppSelector((state) => state.auth);
 
-  // Check authentication status on app initialization
+  // Background token verification - DISABLED for now to ensure session persistence
+  // Token is only invalidated on explicit logout or 401/403 from API
   useEffect(() => {
-    const initializeAuth = async () => {
-      const storedToken = localStorage.getItem('opti_connect_token');
-      const storedUser = localStorage.getItem('opti_connect_user');
+    // Optional: Verify token in background but NEVER logout automatically
+    // This can be used for logging/monitoring only
+    const verifyAuth = async () => {
       const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
 
-      if (storedToken && storedUser) {
+      if (isAuthenticated && token && USE_BACKEND) {
         try {
-          // If backend is disabled, always restore session from localStorage
-          if (!USE_BACKEND) {
-            const userData = JSON.parse(storedUser);
-            dispatch(loginSuccess({ user: userData, token: storedToken }));
-            return;
-          }
-
-          // If backend is enabled, verify token is still valid
-          const isValid = await apiService.verifyToken(storedToken);
-
-          if (isValid) {
-            const userData = JSON.parse(storedUser);
-            dispatch(loginSuccess({ user: userData, token: storedToken }));
-          } else {
-            // Token is invalid, clear storage
-            localStorage.removeItem('opti_connect_token');
-            localStorage.removeItem('opti_connect_user');
+          const isValid = await apiService.verifyToken(token);
+          if (!isValid) {
+            console.warn('⚠️ Token verification failed, but session remains active');
+            // IMPORTANT: Do NOT logout here - session stays active until explicit logout
           }
         } catch (error) {
-          console.error('Auth initialization error:', error);
-          // If backend mode but error, still try to restore from localStorage
-          if (!USE_BACKEND) {
-            try {
-              const userData = JSON.parse(storedUser);
-              dispatch(loginSuccess({ user: userData, token: storedToken }));
-            } catch {
-              localStorage.removeItem('opti_connect_token');
-              localStorage.removeItem('opti_connect_user');
-            }
-          } else {
-            localStorage.removeItem('opti_connect_token');
-            localStorage.removeItem('opti_connect_user');
-          }
+          console.warn('Token verification error (ignoring):', error);
+          // IMPORTANT: Do NOT logout on network errors
         }
       }
     };
 
-    initializeAuth();
-  }, [dispatch]);
+    // Comment out to completely disable background verification
+    // verifyAuth();
+  }, [isAuthenticated, token]);
 
-  // Set up token refresh interval
+  // Set up token refresh interval - DISABLED to prevent auto-logout
   useEffect(() => {
     if (isAuthenticated && token) {
       const refreshInterval = setInterval(async () => {
@@ -82,11 +59,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const refreshedToken = await apiService.refreshToken(token);
           if (refreshedToken && user) {
             dispatch(loginSuccess({ user, token: refreshedToken }));
+            console.log('✅ Token refreshed successfully');
           }
         } catch (error) {
-          console.error('Token refresh failed:', error);
-          // If refresh fails, logout user
-          handleLogout();
+          console.warn('Token refresh failed (non-critical):', error);
+          // IMPORTANT: Do NOT logout on refresh failure
+          // Session remains active until explicit logout
         }
       }, 15 * 60 * 1000); // Refresh every 15 minutes
 
@@ -245,6 +223,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuthStatus,
   };
 
+  // No loading screen needed - Redux restores state synchronously from localStorage
+  // This provides instant access to authenticated routes on refresh
   return (
     <AuthContext.Provider value={value}>
       {children}

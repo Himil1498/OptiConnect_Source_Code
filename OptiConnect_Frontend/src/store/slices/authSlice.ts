@@ -9,10 +9,11 @@ interface AuthState {
   error: string | null;
 }
 
+// Initial state - redux-persist will handle restoration
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
-  token: localStorage.getItem('opti_connect_token'),
+  token: null,
   isLoading: false,
   error: null,
 };
@@ -31,8 +32,10 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.error = null;
+      // Keep localStorage for backward compatibility and immediate access
       localStorage.setItem('opti_connect_token', action.payload.token);
       localStorage.setItem('opti_connect_user', JSON.stringify(action.payload.user));
+      console.log('✅ User logged in:', action.payload.user.username);
     },
     loginFailure: (state, action: PayloadAction<string>) => {
       state.isLoading = false;
@@ -40,6 +43,7 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.error = action.payload;
+      // Clear localStorage
       localStorage.removeItem('opti_connect_token');
       localStorage.removeItem('opti_connect_user');
     },
@@ -48,8 +52,10 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.error = null;
+      // Clear localStorage
       localStorage.removeItem('opti_connect_token');
       localStorage.removeItem('opti_connect_user');
+      console.log('✅ User logged out');
     },
     clearError: (state) => {
       state.error = null;
@@ -57,7 +63,9 @@ const authSlice = createSlice({
     updateUser: (state, action: PayloadAction<Partial<User>>) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
+        // Sync with localStorage
         localStorage.setItem('opti_connect_user', JSON.stringify(state.user));
+        console.log('✅ User updated:', state.user.username);
       }
     },
   },

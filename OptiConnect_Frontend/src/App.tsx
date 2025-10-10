@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
-import { store } from './store';
+import { PersistGate } from 'redux-persist/integration/react';
+import { store, persistor } from './store';
+import { useAppSelector } from './store';
 import './App.css';
 
 // Components
@@ -18,7 +20,7 @@ import ResendVerificationPage from './pages/ResendVerificationPage';
 
 // Context Providers
 import { ThemeProvider } from './contexts/ThemeContext';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
 
 // Utils and Configuration
@@ -27,13 +29,13 @@ import { config, validateEnvironment, debugLog } from './utils/environment';
 // Error Boundary
 import ErrorBoundary from './components/common/ErrorBoundary';
 
-// Protected Route Component with Role-Based Access Control
+// Protected Route Component with Role-Based Access Control (INDUSTRY STANDARD)
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
   allowedRoles?: string[];
 }> = ({ children, allowedRoles }) => {
-  const isAuthenticated = store.getState().auth.isAuthenticated;
-  const user = store.getState().auth.user;
+  // Use Redux selector to get real-time auth state
+  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -93,13 +95,14 @@ const App: React.FC = () => {
       }}
     >
       <Provider store={store}>
-        <ThemeProvider>
-          <GoogleMapsProvider>
-            <AuthProvider>
-              <Router>
-                <div className="App min-h-screen bg-gray-50 dark:bg-gray-900">
-                  <NavigationBar />
-                  <Routes>
+        <PersistGate loading={null} persistor={persistor}>
+          <ThemeProvider>
+            <GoogleMapsProvider>
+              <AuthProvider>
+                <Router>
+                  <div className="App min-h-screen bg-gray-50 dark:bg-gray-900">
+                    <NavigationBar />
+                    <Routes>
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/verify-email" element={<EmailVerificationPage />} />
                     <Route path="/resend-verification" element={<ResendVerificationPage />} />
@@ -180,12 +183,13 @@ const App: React.FC = () => {
                         </div>
                       }
                     />
-                  </Routes>
-                </div>
-              </Router>
-            </AuthProvider>
-          </GoogleMapsProvider>
-        </ThemeProvider>
+                    </Routes>
+                  </div>
+                </Router>
+              </AuthProvider>
+            </GoogleMapsProvider>
+          </ThemeProvider>
+        </PersistGate>
       </Provider>
     </ErrorBoundary>
   );
