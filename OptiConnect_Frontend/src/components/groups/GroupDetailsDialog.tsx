@@ -3,7 +3,8 @@
  * View detailed information about a user group
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import type { User } from '../../types/auth.types';
 import type { UserGroup } from '../../types/permissions.types';
 import { SYSTEM_PERMISSIONS } from '../../types/permissions.types';
 import { getAllUsers } from '../../services/userService';
@@ -17,7 +18,23 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
   group,
   onClose
 }) => {
-  const users = getAllUsers();
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const fetchedUsers = await getAllUsers();
+        setUsers(fetchedUsers);
+      } catch (error) {
+        console.error('Error loading users:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadUsers();
+  }, []);
+
   const groupMembers = users.filter(u => group.members.includes(u.id));
   const groupManagers = users.filter(u => group.managers.includes(u.id));
   const groupPermissions = SYSTEM_PERMISSIONS.filter(p => group.permissions.includes(p.id));

@@ -2,15 +2,20 @@ import axios from 'axios';
 import type { User } from '../types/auth.types';
 import type { TelecomTower, NetworkCoverage } from '../store/slices/dataSlice';
 import type { AnalyticsMetric, PerformanceData } from '../store/slices/analyticsSlice';
+import mockApiService from './mockApiService';
 
 // API Configuration
+const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
+const USE_MOCK_API = process.env.REACT_APP_USE_MOCK_API === 'true';
+const BACKEND_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
 const API_CONFIG = {
   development: {
-    baseURL: 'http://localhost:3001/api',
+    baseURL: USE_BACKEND ? BACKEND_API_URL : 'http://localhost:3001/api',
     timeout: 10000,
   },
   production: {
-    baseURL: process.env.REACT_APP_API_BASE_URL || 'https://api.opticonnect.com',
+    baseURL: process.env.REACT_APP_API_URL || 'https://api.opticonnect.com',
     timeout: 30000,
   },
 };
@@ -19,6 +24,24 @@ const API_CONFIG = {
 const config = process.env.NODE_ENV === 'production'
   ? API_CONFIG.production
   : API_CONFIG.development;
+
+// Log API configuration (for debugging)
+console.log('🔧 API Configuration:', {
+  USE_BACKEND,
+  USE_MOCK_API,
+  baseURL: config.baseURL,
+  environment: process.env.NODE_ENV
+});
+
+// Show alert if using mock mode
+if (USE_MOCK_API) {
+  console.log('📱 MOCK MODE ENABLED - Using fake data for offline development');
+  console.log('✅ You can login with any of these mock credentials:');
+  console.log('   - admin@opticonnect.com / Admin@123');
+  console.log('   - john.manager@opticonnect.com / Manager@123');
+  console.log('   - sarah.tech@opticonnect.com / Tech@123');
+  console.log('   - mike.user@opticonnect.com / User@123');
+}
 
 // Create axios instance
 const apiClient = axios.create({
@@ -107,6 +130,26 @@ interface ApiResponse<T> {
   };
 }
 
+// Backend response types
+interface BackendUser {
+  id: number;
+  username: string;
+  email: string;
+  full_name?: string;
+  role?: string;
+  phone?: string;
+  department?: string;
+  is_active?: boolean;
+  assignedRegions?: string[]; // Backend sends assignedRegions, not regions
+  regions?: string[]; // Keep for backward compatibility
+}
+
+interface BackendLoginResponse {
+  success: boolean;
+  token: string;
+  user: BackendUser;
+}
+
 // Mock data for development
 const MOCK_TOWERS: TelecomTower[] = [
   {
@@ -152,8 +195,21 @@ const MOCK_TOWERS: TelecomTower[] = [
 class ApiService {
   // Authentication
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    if (process.env.NODE_ENV === 'development') {
-      // Mock authentication for development
+    // Check if mock mode is enabled first
+    if (USE_MOCK_API) {
+      console.log('🔄 Using MOCK API (offline mode)');
+      const response = await mockApiService.login(credentials.email, credentials.password);
+      return {
+        user: response.user,
+        token: response.token,
+        refreshToken: response.token,
+        expiresIn: 3600
+      };
+    }
+
+    // Use backend if enabled, otherwise use mock data
+    if (!USE_BACKEND) {
+      console.log('🔄 Using mock authentication (backend disabled)');
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       return {
@@ -188,8 +244,69 @@ class ApiService {
       };
     }
 
-    const response = await apiClient.post<ApiResponse<LoginResponse>>('/auth/login', credentials);
-    return response.data.data;
+    // Real backend authentication
+    console.log('🔄 Attempting real backend authentication...');
+    try {
+      const response = await apiClient.post<BackendLoginResponse>('/auth/login', {
+        email: credentials.email,
+        password: credentials.password
+      });
+
+      console.log('✅ Backend login successful:', response.data);
+
+      // Transform backend response to match frontend format
+      const backendData: BackendLoginResponse = response.data;
+
+      // Map backend role to frontend role types
+      const mapRole = (backendRole?: string): 'Admin' | 'Manager' | 'Technician' | 'User' => {
+        const role = backendRole?.toLowerCase();
+        switch (role) {
+          case 'admin':
+            return 'Admin';
+          case 'manager':
+            return 'Manager';
+          case 'technician':
+          case 'engineer':
+            return 'Technician';
+          default:
+            return 'User';
+        }
+      };
+
+      return {
+        user: {
+          id: backendData.user.id.toString(),
+          email: backendData.user.email,
+          name: backendData.user.full_name || backendData.user.username,
+          username: backendData.user.username,
+          role: mapRole(backendData.user.role),
+          company: credentials.company || 'OptiConnect',
+          permissions: ['all'], // You can map this from backend later
+          lastLogin: new Date().toISOString(),
+          password: '********',
+          gender: 'Other',
+          phoneNumber: backendData.user.phone || '',
+          address: {
+            street: '',
+            city: '',
+            state: '',
+            pincode: ''
+          },
+          officeLocation: backendData.user.department || '',
+          assignedUnder: [],
+          assignedRegions: backendData.user.assignedRegions || backendData.user.regions || [],
+          groups: [],
+          status: backendData.user.is_active ? 'Active' : 'Inactive',
+          loginHistory: [],
+        },
+        token: backendData.token,
+        refreshToken: backendData.token, // Backend uses same token for now
+        expiresIn: 900, // 15 minutes as per backend config
+      };
+    } catch (error: any) {
+      console.error('❌ Backend login failed:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Login failed');
+    }
   }
 
   async logout(token: string): Promise<void> {
@@ -343,6 +460,12 @@ class ApiService {
 
   // User Management APIs
   async getUsers(filters?: any): Promise<User[]> {
+    // Use mock API if enabled
+    if (USE_MOCK_API) {
+      const response = await mockApiService.getAllUsers();
+      return response.users;
+    }
+
     if (process.env.NODE_ENV === 'development') {
       await new Promise(resolve => setTimeout(resolve, 500));
 

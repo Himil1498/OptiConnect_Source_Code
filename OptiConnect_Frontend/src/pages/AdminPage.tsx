@@ -176,44 +176,43 @@ const AdminPage: React.FC = () => {
     <PageContainer>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         {/* Header */}
-        <div className="bg-white dark:bg-gray-800 shadow">
+        <div className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-6">
               <div className="flex items-center space-x-4">
                 <div className="flex-shrink-0">
-                  <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center shadow-lg">
+                  <div className="h-14 w-14 rounded-lg bg-red-600 dark:bg-red-500 flex items-center justify-center shadow-lg">
                     <svg
                       className="h-8 w-8 text-white"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      strokeWidth={2}
                     >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
                         d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
                       />
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
                         d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                       />
                     </svg>
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-rose-600 to-rose-800 dark:from-rose-400 dark:to-rose-600 bg-clip-text text-transparent">
+                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                     Administration
                   </h1>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 font-medium mt-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     System administration and region management
                   </p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 dark:from-blue-900 dark:to-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 border border-red-300 dark:border-red-700">
                   <svg
                     className="w-4 h-4 mr-1.5"
                     fill="currentColor"
@@ -231,34 +230,25 @@ const AdminPage: React.FC = () => {
             </div>
 
             {/* Tabs */}
-            <div className="border-b border-gray-200 dark:border-gray-700">
-              <nav className="-mb-px flex space-x-8 overflow-x-auto">
+            <div className="border-t border-gray-200 dark:border-gray-700 mt-6">
+              <nav className="-mb-px flex space-x-1 overflow-x-auto pt-4">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`
-                    group inline-flex items-center gap-2 py-4 px-3 border-b-2 font-semibold text-sm whitespace-nowrap transition-all duration-200 relative
-                    ${
-                      activeTab === tab.id
-                        ? `${tab.borderColor} ${tab.iconColor}`
-                        : "border-transparent text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                    }
-                  `}
-                  >
-                    <span
-                      className={`transform group-hover:scale-110 transition-all duration-200 ${
+                      inline-flex items-center gap-2 px-4 py-2.5 border-b-2 font-semibold text-sm whitespace-nowrap transition-colors duration-200
+                      ${
                         activeTab === tab.id
-                          ? tab.iconColor
-                          : `text-gray-500 group-hover:${tab.iconColor}`
-                      }`}
-                    >
+                          ? `border-red-500 ${tab.iconColor}`
+                          : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600"
+                      }
+                    `}
+                  >
+                    <span className={activeTab === tab.id ? tab.iconColor : 'text-gray-500 dark:text-gray-400'}>
                       {tab.icon}
                     </span>
                     <span>{tab.name}</span>
-                    {activeTab === tab.id && (
-                      <span className={`absolute bottom-0 left-0 right-0 h-0.5 ${tab.bgColor} rounded-full`}></span>
-                    )}
                   </button>
                 ))}
               </nav>

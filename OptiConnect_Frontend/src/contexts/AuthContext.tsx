@@ -30,17 +30,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem('opti_connect_token');
       const storedUser = localStorage.getItem('opti_connect_user');
+      const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
 
       if (storedToken && storedUser) {
         try {
-          // In development mode, skip token verification and restore session directly
-          if (process.env.NODE_ENV === 'development') {
+          // If backend is disabled, always restore session from localStorage
+          if (!USE_BACKEND) {
             const userData = JSON.parse(storedUser);
             dispatch(loginSuccess({ user: userData, token: storedToken }));
             return;
           }
 
-          // In production, verify token is still valid
+          // If backend is enabled, verify token is still valid
           const isValid = await apiService.verifyToken(storedToken);
 
           if (isValid) {
@@ -53,8 +54,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         } catch (error) {
           console.error('Auth initialization error:', error);
-          // In development, still try to restore session on error
-          if (process.env.NODE_ENV === 'development') {
+          // If backend mode but error, still try to restore from localStorage
+          if (!USE_BACKEND) {
             try {
               const userData = JSON.parse(storedUser);
               dispatch(loginSuccess({ user: userData, token: storedToken }));
@@ -97,14 +98,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     dispatch(loginStart());
 
     try {
-      // In development mode, use mock authentication
-      if (process.env.NODE_ENV === 'development') {
-        // Simulate API delay
+      // Check if we should use backend
+      const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
+
+      if (!USE_BACKEND) {
+        // Mock mode - use development mock data
+        console.log('🔄 Using mock authentication (backend disabled)');
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Mock user data based on email for testing region enforcement
         let mockUser: User;
-
         switch (credentials.email.toLowerCase()) {
           case 'admin@example.com':
             mockUser = {
@@ -127,7 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               },
               officeLocation: 'Mumbai HQ',
               assignedUnder: [],
-              assignedRegions: [], // Admin has access to ALL regions
+              assignedRegions: [],
               groups: [],
               status: 'Active',
               loginHistory: [],
@@ -162,36 +164,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             };
             break;
 
-          case 'viewer@example.com':
-            mockUser = {
-              id: 'viewer_001',
-              email: credentials.email,
-              name: 'Viewer User',
-              role: 'User',
-              company: credentials.company || 'Opti Telemedia',
-              permissions: ['read'],
-              lastLogin: new Date().toISOString(),
-              username: 'viewer',
-              password: '********',
-              gender: 'Female',
-              phoneNumber: '+91-9876543212',
-              address: {
-                street: 'Viewer Street',
-                city: 'New Delhi',
-                state: 'Delhi',
-                pincode: '110001'
-              },
-              officeLocation: 'Delhi Office',
-              assignedUnder: ['admin_001'],
-              assignedRegions: ['Delhi'],
-              groups: [],
-              status: 'Active',
-              loginHistory: [],
-            };
-            break;
-
           default:
-            // Default user for any other email
             mockUser = {
               id: 'dev_user_1',
               email: credentials.email,
@@ -220,16 +193,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         const mockToken = 'dev_token_' + Date.now();
-
         dispatch(loginSuccess({ user: mockUser, token: mockToken }));
       } else {
-        // Production authentication via API
+        // Backend mode - real authentication
+        console.log('🔄 Using real backend authentication');
         const response = await apiService.login(credentials);
         dispatch(loginSuccess({ user: response.user, token: response.token }));
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || 'Login failed';
       dispatch(loginFailure(errorMessage));
+      throw error; // Re-throw to allow login form to handle it
     }
   };
 

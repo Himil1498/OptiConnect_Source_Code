@@ -22,25 +22,42 @@ const Dashboard: React.FC = () => {
 
   return (
     <PageContainer className="bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow">
+      {/* Professional Header */}
+      <div className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Opti Connect GIS Platform
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Welcome back, {user?.name || "User"}
-              </p>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center py-6 gap-4">
+            {/* Left Section */}
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <div className="h-14 w-14 rounded-lg bg-blue-600 dark:bg-blue-500 flex items-center justify-center shadow-lg">
+                  <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  OptiConnect GIS Platform
+                </h1>
+                <div className="flex items-center space-x-2 mt-1">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Welcome back, <span className="font-semibold text-gray-900 dark:text-white">{user?.name || "User"}</span>
+                  </span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    {user?.role}
+                  </span>
+                </div>
+              </div>
             </div>
+
+            {/* Right Section - Company Info */}
             <div className="flex items-center space-x-4">
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {user?.company}
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {user?.company || 'N/A'}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {user?.role}
+                  {user?.assignedRegions?.length || 0} Regions Assigned
                 </p>
               </div>
             </div>

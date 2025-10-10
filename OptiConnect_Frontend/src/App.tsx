@@ -13,6 +13,8 @@ import GroupsManagement from './pages/GroupsManagement';
 import AdminPage from './pages/AdminPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import LoginPage from './pages/LoginPage';
+import EmailVerificationPage from './pages/EmailVerificationPage';
+import ResendVerificationPage from './pages/ResendVerificationPage';
 
 // Context Providers
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -99,6 +101,8 @@ const App: React.FC = () => {
                   <NavigationBar />
                   <Routes>
                     <Route path="/login" element={<LoginPage />} />
+                    <Route path="/verify-email" element={<EmailVerificationPage />} />
+                    <Route path="/resend-verification" element={<ResendVerificationPage />} />
                     <Route
                       path="/dashboard"
                       element={

@@ -154,13 +154,14 @@ const NavigationBar: React.FC = () => {
                   className={`${
                     isActive(item.href)
                       ? `border-b-2 border-current ${item.iconColor} font-semibold`
-                      : `border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200`
+                      : `border-transparent text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200`
                   } inline-flex items-center gap-2 px-3 pt-1 pb-1 text-sm transition-all duration-200 group relative`}
                 >
-                  <span className={`transform group-hover:scale-110 transition-all duration-200 ${
-                    isActive(item.href) ? item.iconColor : 'group-hover:' + item.iconColor
-                  }`}>
-                    {item.icon}
+                  {/* Fixed: Icons now visible in light mode with proper stroke width */}
+                  <span className={`transform group-hover:scale-110 transition-all duration-200`}>
+                    <svg className={`h-5 w-5 ${isActive(item.href) ? item.iconColor : 'text-gray-700 dark:text-gray-400 group-hover:' + item.iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      {item.icon.props.children}
+                    </svg>
                   </span>
                   <span className="font-medium">{item.name}</span>
                   {isActive(item.href) && (
@@ -251,24 +252,32 @@ const NavigationBar: React.FC = () => {
               )}
             </button>
 
-            {/* User Profile Dropdown */}
+            {/* User Profile Dropdown - Enhanced */}
             <div className="relative" ref={profileDropdownRef}>
               <button
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                className="flex items-center space-x-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg px-3 py-2 transition-colors"
+                className="flex items-center space-x-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg px-3 py-2 transition-all duration-200 group"
               >
-                <div className="flex-shrink-0">
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
-                    <span className="text-sm font-bold text-white">
-                      {user?.name
-                        ?.split(" ")
-                        .map((n: string) => n[0])
-                        .join("") || "U"}
-                    </span>
+                <div className="flex-shrink-0 relative">
+                  {/* Avatar with gradient border and status indicator */}
+                  <div className="relative">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-0.5 transform group-hover:scale-110 transition-transform duration-200">
+                      <div className="h-full w-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center">
+                        <span className="text-sm font-bold bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                          {user?.name
+                            ?.split(" ")
+                            .map((n: string) => n[0])
+                            .join("")
+                            .toUpperCase() || "U"}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Online status indicator */}
+                    <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800 ring-2 ring-green-500/30 animate-pulse"></div>
                   </div>
                 </div>
                 <div className="hidden md:block text-left">
-                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">
                     {user?.name}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -276,114 +285,151 @@ const NavigationBar: React.FC = () => {
                   </div>
                 </div>
                 <svg
-                  className={`hidden md:block w-4 h-4 text-gray-500 transition-transform ${
+                  className={`hidden md:block w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
                     showProfileDropdown ? "rotate-180" : ""
                   }`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  strokeWidth={2}
                 >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={2}
                     d="M19 9l-7 7-7-7"
                   />
                 </svg>
               </button>
 
-              {/* Profile Dropdown Menu */}
+              {/* Profile Dropdown Menu - Enhanced */}
               {showProfileDropdown && (
-                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50">
-                  {/* User Info Section */}
-                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                    <div className="flex items-center space-x-3">
-                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                        <span className="text-lg font-bold text-white">
-                          {user?.name
-                            ?.split(" ")
-                            .map((n: string) => n[0])
-                            .join("") || "U"}
-                        </span>
+                <div className="absolute right-0 mt-2 w-80 rounded-xl shadow-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden backdrop-blur-lg animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                  {/* Header Section with Gradient */}
+                  <div className="px-6 py-5 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-blue-900/20 dark:via-purple-900/20 dark:to-pink-900/20 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center space-x-4">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0">
+                        <div className="h-14 w-14 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg ring-4 ring-white dark:ring-gray-800">
+                          <span className="text-lg font-bold text-white">
+                            {user?.name
+                              ?.split(" ")
+                              .map((n: string) => n[0])
+                              .join("")
+                              .toUpperCase() || "U"}
+                          </span>
+                        </div>
                       </div>
+                      {/* User Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
                           {user?.name}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-0.5">
                           {user?.email}
                         </p>
+                        {/* Role Badge */}
+                        <div className="mt-2">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md">
+                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            {user?.role}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Profile Details */}
-                  <div className="px-4 py-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Company
-                      </span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {user?.company}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Role
-                      </span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        {user?.role}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Assigned Regions
-                      </span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {user?.assignedRegions?.length || 0}
-                      </span>
+                  {/* Menu Items */}
+                  <div className="py-2">
+                    {/* Profile Link */}
+                    <Link
+                      to="/profile"
+                      onClick={() => setShowProfileDropdown(false)}
+                      className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group"
+                    >
+                      <svg className="w-5 h-5 mr-3 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span className="font-medium">View Profile</span>
+                    </Link>
+
+                    {/* Settings Link */}
+                    <Link
+                      to="/settings"
+                      onClick={() => setShowProfileDropdown(false)}
+                      className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors group"
+                    >
+                      <svg className="w-5 h-5 mr-3 text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="font-medium">Settings</span>
+                    </Link>
+
+                    {/* Stats Section */}
+                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border-y border-gray-200 dark:border-gray-700 my-2">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="text-center p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Company</p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white mt-1 truncate">{user?.company || 'N/A'}</p>
+                        </div>
+                        <div className="text-center p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Regions</p>
+                          <p className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-1">{user?.assignedRegions?.length || 0}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Assigned Regions List */}
+                  {/* Assigned Regions Preview */}
                   {user?.assignedRegions && user.assignedRegions.length > 0 && (
                     <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                        Your Regions:
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Your Regions
                       </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {user.assignedRegions.map((region: string) => (
+                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                        {user.assignedRegions.slice(0, 6).map((region: string) => (
                           <span
                             key={region}
-                            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
                           >
                             {region}
                           </span>
                         ))}
+                        {user.assignedRegions.length > 6 && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200">
+                            +{user.assignedRegions.length - 6} more
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
 
-                  {/* Actions */}
+                  {/* Sign Out */}
                   <div className="border-t border-gray-200 dark:border-gray-700">
                     <button
                       onClick={handleLogout}
-                      className="w-full px-4 py-3 text-left flex items-center gap-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors group font-semibold"
                     >
                       <svg
-                        className="w-5 h-5"
+                        className="w-5 h-5 group-hover:scale-110 transition-transform"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
+                        strokeWidth={2}
                       >
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          strokeWidth={2}
                           d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                         />
                       </svg>
-                      <span className="text-sm font-medium">Sign Out</span>
+                      <span className="text-sm">Sign Out</span>
                     </button>
                   </div>
                 </div>
