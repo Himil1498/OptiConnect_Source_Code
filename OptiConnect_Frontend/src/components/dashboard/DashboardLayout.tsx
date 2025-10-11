@@ -11,6 +11,7 @@ import {
   getUserStatistics,
   initializeAnalyticsSession
 } from "../../services/analyticsService";
+import { getAllUsers } from "../../services/userService";
 
 // Components
 import KPICards from "./KPICards";
@@ -26,6 +27,7 @@ const DashboardLayout: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [realUsers, setRealUsers] = useState<any[]>([]);
 
   // Initialize analytics session
   useEffect(() => {
@@ -101,11 +103,31 @@ const DashboardLayout: React.FC = () => {
     try {
       setLoading(true);
 
-      // Mock users data (in production, this would come from backend)
-      const mockUsers = createMockUsers();
+      const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
+      let usersData: any[] = [];
+
+      if (USE_BACKEND) {
+        try {
+          // Fetch real users from backend
+          const backendUsers = await getAllUsers();
+          usersData = backendUsers;
+          console.log('📊 Loaded real users from backend:', backendUsers.length);
+        } catch (error) {
+          console.error('Failed to load users from backend, falling back to mock data:', error);
+          // Fallback to mock data if backend fails
+          usersData = createMockUsers();
+        }
+      } else {
+        // Use mock data in mock mode
+        usersData = createMockUsers();
+        console.log('📊 Using mock users data:', usersData.length);
+      }
+
+      // Store users data for userStats calculation
+      setRealUsers(usersData);
 
       // Get metrics
-      const dashboardMetrics = await getDashboardMetrics(mockUsers);
+      const dashboardMetrics = await getDashboardMetrics(usersData);
       setMetrics(dashboardMetrics);
       setLastRefresh(new Date());
     } catch (error) {
@@ -137,7 +159,7 @@ const DashboardLayout: React.FC = () => {
   };
 
   const toolStats = getToolUsageStats();
-  const userStats = metrics ? getUserStatistics(createMockUsers()) : null;
+  const userStats = metrics ? getUserStatistics(realUsers.length > 0 ? realUsers : createMockUsers()) : null;
 
   return (
     <PageContainer>

@@ -8,12 +8,11 @@ import {
   extendTemporaryAccess,
   deleteTemporaryGrant,
   getTemporaryAccessStats,
-  getExpiringGrants,
-  cleanupExpiredGrants
+  getExpiringGrants
 } from '../../services/temporaryAccessService';
+import { getAllUsers } from '../../services/userService';
 import { INDIAN_STATES } from '../../utils/regionMapping';
 import type { TemporaryRegionAccess, TemporaryAccessFilter } from '../../types/temporaryAccess.types';
-import type { User } from '../../types/auth.types';
 import NotificationDialog from '../common/NotificationDialog';
 import {
   ClockIcon,
@@ -22,15 +21,24 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ExclamationTriangleIcon,
-  PencilIcon,
   TrashIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
+// Simple User interface for this component
+interface SimpleUser {
+  id: string;
+  username?: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive?: boolean;
+}
+
 const TemporaryAccessManagement: React.FC = () => {
   const currentUser = useAppSelector(state => state.auth.user);
   const [grants, setGrants] = useState<TemporaryRegionAccess[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<SimpleUser[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Form state
@@ -81,19 +89,37 @@ const TemporaryAccessManagement: React.FC = () => {
     if (isAdmin) {
       loadData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterUserId, filterRegion, filterStatus, isAdmin]);
 
-  const loadData = () => {
-    // Load users from localStorage
-    try {
-      const usersData = localStorage.getItem('users');
-      if (usersData) {
-        const parsedUsers: User[] = JSON.parse(usersData);
-        const allUsers = parsedUsers.filter(u => u.id !== currentUser?.id && u.role !== 'Admin');
-        setUsers(allUsers);
+  const loadData = async () => {
+    const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
+
+    // Load users
+    if (USE_BACKEND) {
+      try {
+        const backendUsers = await getAllUsers();
+        // Map backend users to User type expected by component
+        const mappedUsers: SimpleUser[] = backendUsers
+          .filter((u: any) => u.id?.toString() !== currentUser?.id && u.role !== 'Admin' && u.role !== 'admin')
+          .map((u: any) => ({
+            id: u.id?.toString() || u.user_id || '',
+            username: u.username || '',
+            name: u.full_name || u.name || u.username || '',
+            email: u.email || '',
+            role: u.role || 'User',
+            isActive: u.is_active !== undefined ? u.is_active : true
+          }));
+        setUsers(mappedUsers);
+        console.log('📊 Temporary Access: Loaded real users from backend:', mappedUsers.length);
+      } catch (error) {
+        console.error('Failed to load users from backend:', error);
+        // Fallback to localStorage
+        loadUsersFromLocalStorage();
       }
-    } catch (error) {
-      console.error('Failed to load users:', error);
+    } else {
+      // Use localStorage in mock mode
+      loadUsersFromLocalStorage();
     }
 
     // Load grants with filters
@@ -108,9 +134,9 @@ const TemporaryAccessManagement: React.FC = () => {
     }
 
     if (filterUserId || filterRegion || filterStatus !== 'all') {
-      filteredGrants = getFilteredTemporaryAccess(filter);
+      filteredGrants = await getFilteredTemporaryAccess(filter);
     } else {
-      filteredGrants = getTemporaryAccess();
+      filteredGrants = await getTemporaryAccess();
     }
 
     // Additional filtering for expired/revoked
@@ -124,7 +150,7 @@ const TemporaryAccessManagement: React.FC = () => {
     setGrants(filteredGrants);
 
     // Load statistics
-    const tempStats = getTemporaryAccessStats();
+    const tempStats = await getTemporaryAccessStats();
     setStats({
       total: tempStats.totalGrants,
       active: tempStats.activeGrants,
@@ -133,11 +159,34 @@ const TemporaryAccessManagement: React.FC = () => {
     });
 
     // Load expiring grants
-    const expiring = getExpiringGrants(7);
+    const expiring = await getExpiringGrants(7);
     setExpiringGrants(expiring);
   };
 
-  const handleGrantAccess = () => {
+  const loadUsersFromLocalStorage = () => {
+    try {
+      const usersData = localStorage.getItem('users');
+      if (usersData) {
+        const parsedUsers: any[] = JSON.parse(usersData);
+        const allUsers = parsedUsers
+          .filter(u => u.id !== currentUser?.id && u.role !== 'Admin')
+          .map(u => ({
+            id: u.id,
+            username: u.username,
+            name: u.name || u.full_name || u.username,
+            email: u.email,
+            role: u.role,
+            isActive: u.isActive !== undefined ? u.isActive : true
+          }));
+        setUsers(allUsers);
+        console.log('📊 Temporary Access: Using mock users from localStorage:', allUsers.length);
+      }
+    } catch (error) {
+      console.error('Failed to load users from localStorage:', error);
+    }
+  };
+
+  const handleGrantAccess = async () => {
     if (!selectedUserId || !selectedRegion || !expirationDate || !reason) {
       showNotification('error', 'Validation Error', 'Please fill in all required fields.');
       return;
@@ -162,7 +211,9 @@ const TemporaryAccessManagement: React.FC = () => {
 
     setLoading(true);
     try {
-      grantTemporaryAccess(targetUser, selectedRegion, expiresAt, reason, currentUser);
+      // Cast SimpleUser to any to satisfy grantTemporaryAccess which expects full User type
+      // The function only needs basic user properties (id, name, email) which SimpleUser provides
+      await grantTemporaryAccess(targetUser as any, selectedRegion, expiresAt, reason, currentUser);
       showNotification(
         'success',
         'Access Granted',
@@ -176,7 +227,7 @@ const TemporaryAccessManagement: React.FC = () => {
       setReason('');
 
       // Reload data
-      loadData();
+      await loadData();
     } catch (error) {
       showNotification('error', 'Error', 'Failed to grant temporary access.');
     } finally {
@@ -184,7 +235,7 @@ const TemporaryAccessManagement: React.FC = () => {
     }
   };
 
-  const handleExtend = () => {
+  const handleExtend = async () => {
     if (!selectedGrant || !newExpirationDate) {
       showNotification('error', 'Validation Error', 'Please select a new expiration date.');
       return;
@@ -203,7 +254,7 @@ const TemporaryAccessManagement: React.FC = () => {
 
     setLoading(true);
     try {
-      extendTemporaryAccess(selectedGrant.id, newExpiration, currentUser);
+      await extendTemporaryAccess(selectedGrant.id, newExpiration, currentUser);
       showNotification(
         'success',
         'Access Extended',
@@ -214,7 +265,7 @@ const TemporaryAccessManagement: React.FC = () => {
       setExtendModalOpen(false);
       setSelectedGrant(null);
       setNewExpirationDate('');
-      loadData();
+      await loadData();
     } catch (error) {
       showNotification('error', 'Error', 'Failed to extend temporary access.');
     } finally {
@@ -222,7 +273,7 @@ const TemporaryAccessManagement: React.FC = () => {
     }
   };
 
-  const handleRevoke = () => {
+  const handleRevoke = async () => {
     if (!selectedGrant) return;
 
     if (!currentUser) {
@@ -232,7 +283,7 @@ const TemporaryAccessManagement: React.FC = () => {
 
     setLoading(true);
     try {
-      revokeTemporaryAccess(selectedGrant.id, currentUser, revokeReason || undefined);
+      await revokeTemporaryAccess(selectedGrant.id, currentUser, revokeReason || undefined);
       showNotification(
         'success',
         'Access Revoked',
@@ -243,7 +294,7 @@ const TemporaryAccessManagement: React.FC = () => {
       setRevokeModalOpen(false);
       setSelectedGrant(null);
       setRevokeReason('');
-      loadData();
+      await loadData();
     } catch (error) {
       showNotification('error', 'Error', 'Failed to revoke temporary access.');
     } finally {
@@ -251,7 +302,7 @@ const TemporaryAccessManagement: React.FC = () => {
     }
   };
 
-  const handleDelete = (grant: TemporaryRegionAccess) => {
+  const handleDelete = async (grant: TemporaryRegionAccess) => {
     if (!window.confirm(`Are you sure you want to delete this temporary access grant for ${grant.userName}?`)) {
       return;
     }
@@ -263,10 +314,10 @@ const TemporaryAccessManagement: React.FC = () => {
 
     setLoading(true);
     try {
-      const success = deleteTemporaryGrant(grant.id, currentUser);
+      const success = await deleteTemporaryGrant(grant.id, currentUser);
       if (success) {
         showNotification('success', 'Grant Deleted', 'Temporary access grant deleted successfully.');
-        loadData();
+        await loadData();
       } else {
         showNotification('error', 'Error', 'Failed to delete temporary access grant.');
       }

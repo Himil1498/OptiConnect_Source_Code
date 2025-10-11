@@ -106,7 +106,7 @@ const LoginPage: React.FC = () => {
                     clipRule="evenodd"
                   />
                 </svg>
-                <span className="text-gray-900 dark:text-gray-100">Username or Email</span>
+                <span className="text-gray-900 dark:text-gray-100">Email / Username / User ID</span>
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -131,7 +131,7 @@ const LoginPage: React.FC = () => {
                   value={formData.username}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-3 border-2 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:border-blue-400 hover:border-gray-400 dark:hover:border-gray-500 transition-all duration-200 text-sm font-medium"
-                  placeholder="yourname@company.com"
+                  placeholder="Email, username, or user ID"
                 />
               </div>
             </div>

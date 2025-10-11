@@ -161,6 +161,7 @@ function transformBackendUser(backendUser: BackendUser): User {
       pincode: backendUser.pincode || ''
     },
     officeLocation: backendUser.office_location || '',
+    department: backendUser.department || '', // Map department field
     assignedUnder: [], // Not directly mapped, would need additional API
     role: mapBackendRole(backendUser.role),
     assignedRegions: regions,
@@ -276,6 +277,17 @@ export async function updateUser(id: string, userData: Partial<User>): Promise<U
     const numericId = extractNumericId(id);
     // Transform to backend format
     const backendData = transformFrontendUser(userData);
+
+    // DEBUG: Log what we're sending
+    console.log('=== FRONTEND UPDATE USER DEBUG ===');
+    console.log('User ID:', id, '-> Numeric ID:', numericId);
+    console.log('Original userData:', userData);
+    console.log('Transformed backendData:', backendData);
+    console.log('Key fields:');
+    console.log('  - full_name:', backendData.full_name);
+    console.log('  - email:', backendData.email);
+    console.log('  - department:', backendData.department);
+    console.log('=================================');
 
     const response = await apiClient.put<BackendUserResponse>(`/users/${numericId}`, backendData);
 
@@ -416,5 +428,40 @@ export async function searchUsers(query: string): Promise<User[]> {
   } catch (error: any) {
     console.error('Error searching users:', error);
     throw new Error(error.response?.data?.message || error.message || 'Failed to search users');
+  }
+}
+
+// Bulk assign regions response type
+interface BulkAssignRegionsResponse {
+  success: boolean;
+  message: string;
+  affectedUsers: number;
+}
+
+/**
+ * Bulk assign regions to multiple users
+ */
+export async function bulkAssignRegions(
+  userIds: string[],
+  regionNames: string[],
+  action: 'assign' | 'revoke' | 'replace' = 'assign'
+): Promise<{ success: boolean; message: string; affectedUsers: number }> {
+  try {
+    const numericIds = userIds.map(id => parseInt(extractNumericId(id)));
+    const response = await apiClient.post<BulkAssignRegionsResponse>('/users/bulk-assign-regions', {
+      user_ids: numericIds,
+      region_names: regionNames,
+      action
+    });
+
+    const data = response.data as BulkAssignRegionsResponse;
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to bulk assign regions');
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error('Error bulk assigning regions:', error);
+    throw new Error(error.response?.data?.message || error.message || 'Failed to bulk assign regions');
   }
 }

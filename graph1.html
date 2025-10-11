@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Application Architecture</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        overflow-x: hidden;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 100%;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 32px;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+
+      .header p {
+        font-size: 16px;
+        opacity: 0.9;
+      }
+
+      .controls {
+        padding: 20px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .control-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .control-group label {
+        font-size: 14px;
+        font-weight: 600;
+        color: #495057;
+      }
+
+      input[type="range"] {
+        width: 150px;
+      }
+
+      select {
+        padding: 8px 12px;
+        border: 2px solid #e9ecef;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        background: white;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      select:hover {
+        border-color: #667eea;
+      }
+
+      button {
+        padding: 8px 16px;
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s;
+      }
+
+      button:hover {
+        background: #764ba2;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .legend {
+        display: flex;
+        gap: 20px;
+        margin-left: auto;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #495057;
+      }
+
+      .legend-box {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+      }
+
+      .svg-container {
+        width: 100%;
+        height: calc(100vh - 350px);
+        min-height: 600px;
+        overflow: auto;
+        background: #ffffff;
+        position: relative;
+      }
+
+      svg {
+        display: block;
+      }
+
+      .node {
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .node:hover {
+        filter: brightness(1.1);
+      }
+
+      .node rect {
+        transition: all 0.3s;
+      }
+
+      .node:hover rect {
+        stroke-width: 3;
+      }
+
+      .node text {
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .connection {
+        fill: none;
+        stroke-width: 2;
+        opacity: 0.4;
+        transition: all 0.3s;
+      }
+
+      .connection:hover {
+        opacity: 0.8;
+        stroke-width: 3;
+      }
+
+      .connection.highlighted {
+        opacity: 1;
+        stroke-width: 3;
+        filter: drop-shadow(0 0 4px currentColor);
+      }
+
+      .layer-label {
+        fill: #6c757d;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 8px;
+        font-size: 13px;
+        pointer-events: none;
+        z-index: 1000;
+        display: none;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+
+      .stats {
+        padding: 20px;
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+      }
+
+      .stat-item {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .stat-label {
+        font-size: 12px;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 5px;
+      }
+
+      .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #667eea;
+      }
+
+      .details-panel {
+        position: fixed;
+        right: -400px;
+        top: 0;
+        width: 400px;
+        height: 100vh;
+        background: white;
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+        transition: right 0.3s ease;
+        z-index: 2000;
+        overflow-y: auto;
+      }
+
+      .details-panel.active {
+        right: 0;
+      }
+
+      .details-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
+      .details-header h2 {
+        font-size: 18px;
+        margin-bottom: 5px;
+        word-break: break-word;
+      }
+
+      .details-header .node-type-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, 0.2);
+        margin-top: 8px;
+      }
+
+      .details-close {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+      }
+
+      .details-close:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: rotate(90deg);
+      }
+
+      .details-content {
+        padding: 20px;
+      }
+
+      .details-section {
+        margin-bottom: 25px;
+      }
+
+      .details-section-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #495057;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .details-section-title .count-badge {
+        background: #667eea;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+      }
+
+      .connection-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .connection-item {
+        padding: 10px 12px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        font-size: 12px;
+        border-left: 3px solid #667eea;
+        cursor: pointer;
+        transition: all 0.2s;
+        word-break: break-word;
+      }
+
+      .connection-item:hover {
+        background: #e9ecef;
+        transform: translateX(4px);
+      }
+
+      .connection-item.incoming {
+        border-left-color: #43e97b;
+      }
+
+      .connection-item.outgoing {
+        border-left-color: #fa709a;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .stat-box {
+        background: #f8f9fa;
+        padding: 12px;
+        border-radius: 6px;
+        text-align: center;
+      }
+
+      .stat-box .value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #667eea;
+      }
+
+      .stat-box .label {
+        font-size: 11px;
+        color: #6c757d;
+        text-transform: uppercase;
+        margin-top: 4px;
+      }
+
+      .empty-state {
+        text-align: center;
+        color: #6c757d;
+        font-size: 13px;
+        padding: 20px;
+        font-style: italic;
+      }
+
+      .node.selected rect {
+        stroke-width: 4;
+        filter: drop-shadow(0 0 8px currentColor);
+      }
+
+      .node.dimmed {
+        opacity: 0.2;
+      }
+
+      .connection.dimmed {
+        opacity: 0.1;
+      }
+
+      .connection.active-incoming {
+        opacity: 1;
+        stroke-width: 3;
+        filter: drop-shadow(0 0 4px #43e97b);
+      }
+
+      .connection.active-outgoing {
+        opacity: 1;
+        stroke-width: 3;
+        filter: drop-shadow(0 0 4px #fa709a);
+      }
+
+      .focus-mode-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 1999;
+        display: none;
+      }
+
+      .focus-mode-overlay.active {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Application Architecture Visualization</h1>
+        <p>Interactive dependency graph with hierarchical layout</p>
+      </div>
+
+      <div class="controls">
+        <div class="control-group">
+          <label>Layout:</label>
+          <select id="layoutSelect">
+            <option value="hierarchical">Hierarchical Flow</option>
+            <option value="grouped">Grouped Clusters</option>
+            <option value="circular">Circular</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Zoom:</label>
+          <input
+            type="range"
+            id="zoomSlider"
+            min="30"
+            max="200"
+            value="100"
+            step="10"
+          />
+          <span id="zoomValue">100%</span>
+        </div>
+        <button id="resetView">Reset View</button>
+        <button id="fitToScreen">Fit to Screen</button>
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-box" style="background: #4facfe"></div>
+            <span>Frontend</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-box" style="background: #43e97b"></div>
+            <span>Backend</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-box" style="background: #fa709a"></div>
+            <span>Routes</span>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="controls"
+        style="border-top: 1px solid #e9ecef; padding-top: 15px"
+      >
+        <div style="font-weight: 600; color: #495057; margin-right: 15px">
+          Connections:
+        </div>
+        <div class="legend-item">
+          <div
+            style="
+              width: 30px;
+              height: 3px;
+              background: #00a5ff;
+              border-radius: 2px;
+            "
+          ></div>
+          <span style="font-size: 12px">Frontend → Frontend</span>
+        </div>
+        <div class="legend-item">
+          <div
+            style="
+              width: 30px;
+              height: 3px;
+              background: #38c062;
+              border-radius: 2px;
+            "
+          ></div>
+          <span style="font-size: 12px">Frontend → Backend</span>
+        </div>
+        <div class="legend-item">
+          <div
+            style="
+              width: 30px;
+              height: 3px;
+              background: #f6508a;
+              border-radius: 2px;
+            "
+          ></div>
+          <span style="font-size: 12px">Frontend → Route</span>
+        </div>
+        <div class="legend-item">
+          <div
+            style="
+              width: 30px;
+              height: 3px;
+              background: #ffa500;
+              border-radius: 2px;
+            "
+          ></div>
+          <span style="font-size: 12px">Route → Backend</span>
+        </div>
+        <div class="legend-item">
+          <div
+            style="
+              width: 30px;
+              height: 3px;
+              background: #9b59b6;
+              border-radius: 2px;
+            "
+          ></div>
+          <span style="font-size: 12px">Backend → Backend</span>
+        </div>
+      </div>
+
+      <div class="svg-container" id="svgContainer">
+        <svg id="diagram"></svg>
+      </div>
+
+      <div class="stats">
+        <div class="stat-item">
+          <div class="stat-label">Total Nodes</div>
+          <div class="stat-value" id="totalNodes">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Connections</div>
+          <div class="stat-value" id="totalConnections">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Frontend Components</div>
+          <div class="stat-value" id="frontendCount">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Backend Routes</div>
+          <div class="stat-value" id="backendCount">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+    <div class="focus-mode-overlay" id="focusOverlay"></div>
+
+    <div class="details-panel" id="detailsPanel">
+      <div class="details-header">
+        <button class="details-close" id="closeDetails">×</button>
+        <h2 id="detailsNodeName">Select a node</h2>
+        <div class="node-type-badge" id="detailsNodeType"></div>
+      </div>
+      <div class="details-content">
+        <div class="details-section">
+          <div class="details-section-title">Statistics</div>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="value" id="incomingCount">0</div>
+              <div class="label">Incoming</div>
+            </div>
+            <div class="stat-box">
+              <div class="value" id="outgoingCount">0</div>
+              <div class="label">Outgoing</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="details-section">
+          <div class="details-section-title">
+            Incoming Connections
+            <span class="count-badge" id="incomingBadge">0</span>
+          </div>
+          <div class="connection-list" id="incomingList">
+            <div class="empty-state">No incoming connections</div>
+          </div>
+        </div>
+
+        <div class="details-section">
+          <div class="details-section-title">
+            Outgoing Connections
+            <span class="count-badge" id="outgoingBadge">0</span>
+          </div>
+          <div class="connection-list" id="outgoingList">
+            <div class="empty-state">No outgoing connections</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const data = `graph TD
+"App.tsx" --> "react-router-dom"
+"App.tsx" --> "components/common/ErrorBoundary.tsx"
+"App.tsx" --> "react-redux"
+"App.tsx" --> "redux-persist/integration/react"
+"App.tsx" --> "contexts/ThemeContext.tsx"
+"App.tsx" --> "contexts/GoogleMapsContext.tsx"
+"App.tsx" --> "contexts/AuthContext.tsx"
+"App.tsx" --> "components/common/NavigationBar.tsx"
+"App.tsx" --> "pages/LoginPage.tsx"
+"App.tsx" --> "pages/EmailVerificationPage.tsx"
+"App.tsx" --> "pages/ResendVerificationPage.tsx"
+"App.tsx" --> "pages/Dashboard.tsx"
+"App.tsx" --> "pages/MapPage.tsx"
+"App.tsx" --> "pages/UsersPage.tsx"
+"App.tsx" --> "pages/GroupsManagement.tsx"
+"App.tsx" --> "pages/AdminPage.tsx"
+"App.tsx" --> "pages/AnalyticsPage.tsx"
+"components/admin/AuditLogViewer.tsx" --> "components/common/ConfirmDialog.tsx"
+"components/admin/BulkRegionAssignment.tsx" --> "components/common/NotificationDialog.tsx"
+"components/admin/RegionReportsExport.tsx" --> "components/common/NotificationDialog.tsx"
+"components/admin/RegionRequestManagement.tsx" --> "components/common/NotificationDialog.tsx"
+"components/admin/TemporaryAccessManagement.tsx" --> "@heroicons/react/24/outline"
+"components/admin/TemporaryAccessManagement.tsx" --> "components/common/NotificationDialog.tsx"
+"components/common/ConfirmDialog.tsx" --> "@heroicons/react/24/outline"
+"components/common/NavigationBar.tsx" --> "react-router-dom"
+"components/common/NotificationDialog.tsx" --> "@heroicons/react/24/outline"
+"components/dashboard/DashboardLayout.tsx" --> "components/common/PageContainer.tsx"
+"components/dashboard/DashboardLayout.tsx" --> "components/dashboard/KPICards.tsx"
+"components/dashboard/DashboardLayout.tsx" --> "components/dashboard/UserStatsPanel.tsx"
+"components/dashboard/DashboardLayout.tsx" --> "components/dashboard/ToolUsageChart.tsx"
+"components/dashboard/DashboardLayout.tsx" --> "components/dashboard/SystemHealthMonitor.tsx"
+"components/dashboard/ToolUsageChart.tsx" --> "react-chartjs-2"
+"components/map/MapSearchBox.tsx" --> "@heroicons/react/24/outline"
+"components/map/MapToolbar.tsx" --> "components/search/GlobalSearch.tsx"
+"components/map/MapToolbar.tsx" --> "components/map/MapControlsPanel.tsx"
+"components/map/MapToolbar.tsx" --> "components/tools/DistanceMeasurementTool.tsx"
+"components/map/MapToolbar.tsx" --> "components/tools/PolygonDrawingTool.tsx"
+"components/map/MapToolbar.tsx" --> "components/tools/CircleDrawingTool.tsx"
+"components/map/MapToolbar.tsx" --> "components/tools/ElevationProfileTool.tsx"
+"components/map/MapToolbar.tsx" --> "components/tools/InfrastructureManagementTool.tsx"
+"components/map/MapToolbar.tsx" --> "components/tools/SectorRFTool.tsx"
+"components/map/MapToolbar.tsx" --> "components/tools/DataHub.tsx"
+"components/tools/CircleDrawingTool.tsx" --> "components/common/NotificationDialog.tsx"
+"components/tools/DataHub.tsx" --> "components/common/NotificationDialog.tsx"
+"components/tools/DistanceMeasurementTool.tsx" --> "components/common/NotificationDialog.tsx"
+"components/tools/ElevationProfileTool.tsx" --> "react-chartjs-2"
+"components/tools/ElevationProfileTool.tsx" --> "components/common/NotificationDialog.tsx"
+"components/tools/InfrastructureManagementTool.tsx" --> "components/common/NotificationDialog.tsx"
+"components/tools/PolygonDrawingTool.tsx" --> "components/common/NotificationDialog.tsx"
+"components/tools/SectorRFTool.tsx" --> "components/common/NotificationDialog.tsx"
+"components/user/RegionAccessRequestForm.tsx" --> "components/common/NotificationDialog.tsx"
+"components/users/UserManagement.tsx" --> "components/users/UserPermissionsDialog.tsx"
+"components/users/UserManagement.tsx" --> "components/common/DeleteUserDialog.tsx"
+"index.tsx" --> "react"
+"index.tsx" --> "App.tsx"
+"pages/AdminPage.tsx" --> "components/common/PageContainer.tsx"
+"pages/AdminPage.tsx" --> "components/admin/AuditLogViewer.tsx"
+"pages/AdminPage.tsx" --> "components/admin/RegionRequestManagement.tsx"
+"pages/AdminPage.tsx" --> "components/admin/BulkRegionAssignment.tsx"
+"pages/AdminPage.tsx" --> "components/admin/TemporaryAccessManagement.tsx"
+"pages/AdminPage.tsx" --> "components/admin/RegionReportsExport.tsx"
+"pages/AnalyticsPage.tsx" --> "components/dashboard/DashboardLayout.tsx"
+"pages/Dashboard.tsx" --> "components/common/PageContainer.tsx"
+"pages/Dashboard.tsx" --> "components/common/ModeIndicator.tsx"
+"pages/Dashboard.tsx" --> "components/common/Footer.tsx"
+"pages/GroupsManagement.tsx" --> "components/common/PageContainer.tsx"
+"pages/GroupsManagement.tsx" --> "components/groups/GroupsList.tsx"
+"pages/GroupsManagement.tsx" --> "components/groups/GroupForm.tsx"
+"pages/GroupsManagement.tsx" --> "components/groups/GroupDetailsDialog.tsx"
+"pages/GroupsManagement.tsx" --> "components/common/ConfirmDialog.tsx"
+"pages/GroupsManagement.tsx" --> "components/common/NotificationDialog.tsx"
+"pages/LoginPage.tsx" --> "react-router-dom"
+"pages/LoginPage.tsx" --> "components/common/ModeIndicator.tsx"
+"pages/MapPage.tsx" --> "components/common/PageContainer.tsx"
+"pages/MapPage.tsx" --> "components/map/MapToolbar.tsx"
+"pages/MapPage.tsx" --> "components/map/CoordinatesDisplay.tsx"
+"pages/MapPage.tsx" --> "components/map/MapSettings.tsx"
+"pages/UsersPage.tsx" --> "components/users/UserManagement.tsx"
+"utils/indiaBoundaryCheck.ts" --> "/india.json"
+"utils/indiaBoundaryCheck.ts" --> "server.js"
+"ROUTE:/api/" --> "server.js"
+"ROUTE:/" --> "server.js"
+"ROUTE:/" --> "src/routes/bookmark.routes.js"
+"ROUTE:/" --> "src/routes/circleDrawing.routes.js"
+"ROUTE:/" --> "src/routes/distanceMeasurement.routes.js"
+"ROUTE:/" --> "src/routes/feature.routes.js"
+"ROUTE:/" --> "src/routes/group.routes.js"
+"ROUTE:/" --> "src/routes/infrastructure.routes.js"
+"ROUTE:/" --> "src/routes/layerManagement.routes.js"
+"ROUTE:/" --> "src/routes/permission.routes.js"
+"ROUTE:/" --> "src/routes/polygonDrawing.routes.js"
+"ROUTE:/" --> "src/routes/preferences.routes.js"
+"ROUTE:/" --> "src/routes/region.routes.js"
+"ROUTE:/" --> "src/routes/regionRequest.routes.js"
+"ROUTE:/" --> "src/routes/sectorRF.routes.js"
+"ROUTE:/" --> "src/routes/temporaryAccess.routes.js"
+"ROUTE:/" --> "src/routes/user.routes.js"
+"ROUTE:/api/health" --> "server.js"
+"ROUTE:/api/auth" --> "server.js"
+"ROUTE:/api/users" --> "server.js"
+"ROUTE:/api/regions" --> "server.js"
+"ROUTE:/api/groups" --> "server.js"
+"ROUTE:/api/features" --> "server.js"
+"ROUTE:/api/measurements/distance" --> "server.js"
+"ROUTE:/api/drawings/polygon" --> "server.js"
+"ROUTE:/api/drawings/circle" --> "server.js"
+"ROUTE:/api/rf/sectors" --> "server.js"
+"ROUTE:/api/elevation" --> "server.js"
+"ROUTE:/api/infrastructure" --> "server.js"
+"ROUTE:/api/layers" --> "server.js"
+"ROUTE:/api/bookmarks" --> "server.js"
+"ROUTE:/api/search" --> "server.js"
+"ROUTE:/api/analytics" --> "server.js"
+"ROUTE:/api/audit" --> "server.js"
+"ROUTE:/api/preferences" --> "server.js"
+"ROUTE:/api/datahub" --> "server.js"
+"ROUTE:/api/temporary-access" --> "server.js"
+"ROUTE:/api/region-requests" --> "server.js"
+"ROUTE:/api/permissions" --> "server.js"
+"ROUTE:/dashboard" --> "src/routes/analytics.routes.js"
+"ROUTE:/users" --> "src/routes/analytics.routes.js"
+"ROUTE:/users" --> "src/routes/search.routes.js"
+"ROUTE:/regions" --> "src/routes/analytics.routes.js"
+"ROUTE:/regions" --> "src/routes/search.routes.js"
+"ROUTE:/features" --> "src/routes/analytics.routes.js"
+"ROUTE:/features" --> "src/routes/search.routes.js"
+"ROUTE:/track" --> "src/routes/analytics.routes.js"
+"ROUTE:/logs" --> "src/routes/audit.routes.js"
+"ROUTE:/logs/:id" --> "src/routes/audit.routes.js"
+"ROUTE:/user/:userId" --> "src/routes/audit.routes.js"
+"ROUTE:/login" --> "src/routes/auth.routes.js"
+"ROUTE:/register" --> "src/routes/auth.routes.js"
+"ROUTE:/me" --> "src/routes/auth.routes.js"
+"ROUTE:/change-password" --> "src/routes/auth.routes.js"
+"ROUTE:/logout" --> "src/routes/auth.routes.js"
+"ROUTE:/verify" --> "src/routes/auth.routes.js"
+"ROUTE:/verify-email/:token" --> "src/routes/auth.routes.js"
+"ROUTE:/resend-verification" --> "src/routes/auth.routes.js"
+"ROUTE:/:id" --> "src/routes/bookmark.routes.js"
+"ROUTE:/:id" --> "src/routes/circleDrawing.routes.js"
+"ROUTE:/:id" --> "src/routes/distanceMeasurement.routes.js"
+"ROUTE:/:id" --> "src/routes/feature.routes.js"
+"ROUTE:/:id" --> "src/routes/group.routes.js"
+"ROUTE:/:id" --> "src/routes/infrastructure.routes.js"
+"ROUTE:/:id" --> "src/routes/layerManagement.routes.js"
+"ROUTE:/:id" --> "src/routes/permission.routes.js"
+"ROUTE:/:id" --> "src/routes/polygonDrawing.routes.js"
+"ROUTE:/:id" --> "src/routes/region.routes.js"
+"ROUTE:/:id" --> "src/routes/sectorRF.routes.js"
+"ROUTE:/:id" --> "src/routes/temporaryAccess.routes.js"
+"ROUTE:/:id" --> "src/routes/user.routes.js"
+"ROUTE:/import" --> "src/routes/dataHub.routes.js"
+"ROUTE:/imports" --> "src/routes/dataHub.routes.js"
+"ROUTE:/export" --> "src/routes/dataHub.routes.js"
+"ROUTE:/exports" --> "src/routes/dataHub.routes.js"
+"ROUTE:/exports/:id/download" --> "src/routes/dataHub.routes.js"
+"ROUTE:/profiles" --> "src/routes/elevationProfile.routes.js"
+"ROUTE:/profiles/:id" --> "src/routes/elevationProfile.routes.js"
+"ROUTE:/calculate" --> "src/routes/elevationProfile.routes.js"
+"ROUTE:/nearby" --> "src/routes/feature.routes.js"
+"ROUTE:/region/:regionId" --> "src/routes/feature.routes.js"
+"ROUTE:/:id/members" --> "src/routes/group.routes.js"
+"ROUTE:/:id/members/:userId" --> "src/routes/group.routes.js"
+"ROUTE:/:id/status" --> "src/routes/infrastructure.routes.js"
+"ROUTE:/:id/upload-photo" --> "src/routes/infrastructure.routes.js"
+"ROUTE:/:id/visibility" --> "src/routes/layerManagement.routes.js"
+"ROUTE:/:id/share" --> "src/routes/layerManagement.routes.js"
+"ROUTE:/hierarchy" --> "src/routes/region.routes.js"
+"ROUTE:/:id/children" --> "src/routes/region.routes.js"
+"ROUTE:/:id/users" --> "src/routes/region.routes.js"
+"ROUTE:/:id/approve" --> "src/routes/regionRequest.routes.js"
+"ROUTE:/:id/reject" --> "src/routes/regionRequest.routes.js"
+"ROUTE:/global" --> "src/routes/search.routes.js"
+"ROUTE:/history" --> "src/routes/search.routes.js"
+"ROUTE:/history/:id" --> "src/routes/search.routes.js"
+"ROUTE:/:id/calculate" --> "src/routes/sectorRF.routes.js"
+"ROUTE:/bulk-delete" --> "src/routes/user.routes.js"
+"ROUTE:/:id/activate" --> "src/routes/user.routes.js"
+"ROUTE:/:id/deactivate" --> "src/routes/user.routes.js"
+"ROUTE:/:id/regions" --> "src/routes/user.routes.js"
+"ROUTE:/:id/regions/:regionId" --> "src/routes/user.routes.js"`;
+
+      function parseData(data) {
+        const lines = data.trim().split("\n").slice(1);
+        const nodes = new Map();
+        const connections = [];
+
+        lines.forEach((line) => {
+          const match = line.match(/"([^"]+)"\s*-->\s*"([^"]+)"/);
+          if (match) {
+            const [, source, target] = match;
+            if (!nodes.has(source))
+              nodes.set(source, {
+                id: source,
+                type: getNodeType(source),
+                category: getCategory(source)
+              });
+            if (!nodes.has(target))
+              nodes.set(target, {
+                id: target,
+                type: getNodeType(target),
+                category: getCategory(target)
+              });
+            connections.push({ source, target });
+          }
+        });
+
+        return { nodes: Array.from(nodes.values()), connections };
+      }
+
+      function getNodeType(name) {
+        if (name.startsWith("ROUTE:")) return "route";
+        if (
+          name.includes(".routes.js") ||
+          name === "server.js" ||
+          name.includes("/india.json")
+        )
+          return "backend";
+        return "frontend";
+      }
+
+      function getCategory(name) {
+        if (name === "index.tsx" || name === "App.tsx") return "entry";
+        if (name.startsWith("pages/")) return "pages";
+        if (name.startsWith("components/")) return "components";
+        if (name.startsWith("contexts/")) return "contexts";
+        if (name.startsWith("utils/")) return "utils";
+        if (name.startsWith("ROUTE:")) return "routes";
+        if (name.includes(".routes.js")) return "routeHandlers";
+        if (name === "server.js") return "server";
+        return "libraries";
+      }
+
+      function getNodeColor(type) {
+        switch (type) {
+          case "frontend":
+            return { fill: "#4facfe", stroke: "#00a5ff" };
+          case "backend":
+            return { fill: "#43e97b", stroke: "#38c062" };
+          case "route":
+            return { fill: "#fa709a", stroke: "#f6508a" };
+          default:
+            return { fill: "#cccccc", stroke: "#999999" };
+        }
+      }
+
+      function getConnectionColor(source, target) {
+        if (source.type === "frontend" && target.type === "frontend")
+          return "#00a5ff";
+        if (source.type === "frontend" && target.type === "backend")
+          return "#38c062";
+        if (source.type === "frontend" && target.type === "route")
+          return "#f6508a";
+        if (source.type === "route" && target.type === "backend")
+          return "#FFA500";
+        if (source.type === "backend" && target.type === "backend")
+          return "#9b59b6";
+        return "#6c757d";
+      }
+
+      let currentLayout = "hierarchical";
+      let currentScale = 1;
+      let selectedNodeId = null;
+      let parsedData = null;
+
+      function createHierarchicalLayout(nodes) {
+        const nodeWidth = 220;
+        const nodeHeight = 40;
+        const layerSpacing = 350;
+        const nodeSpacing = 15;
+        const padding = 80;
+
+        const layers = {
+          entry: [],
+          pages: [],
+          contexts: [],
+          components: [],
+          utils: [],
+          routes: [],
+          routeHandlers: [],
+          server: [],
+          libraries: []
+        };
+
+        nodes.forEach((node) => {
+          layers[node.category].push(node);
+        });
+
+        const layout = [];
+        let x = padding;
+
+        Object.entries(layers).forEach(([category, layerNodes]) => {
+          if (layerNodes.length > 0) {
+            layerNodes.forEach((node, i) => {
+              layout.push({
+                ...node,
+                x: x,
+                y: padding + i * (nodeHeight + nodeSpacing),
+                layer: category
+              });
+            });
+            x += layerSpacing;
+          }
+        });
+
+        return layout;
+      }
+
+      function createGroupedLayout(nodes) {
+        const nodeWidth = 220;
+        const nodeHeight = 40;
+        const padding = 80;
+        const groupSpacing = 100;
+        const nodeSpacing = 15;
+
+        const groups = {};
+        nodes.forEach((node) => {
+          if (!groups[node.category]) groups[node.category] = [];
+          groups[node.category].push(node);
+        });
+
+        const layout = [];
+        let currentX = padding;
+        let currentY = padding;
+        let maxYInRow = 0;
+        const maxWidth = 1400;
+
+        Object.entries(groups).forEach(([category, groupNodes]) => {
+          groupNodes.forEach((node, i) => {
+            if (currentX + nodeWidth > maxWidth) {
+              currentX = padding;
+              currentY = maxYInRow + groupSpacing;
+            }
+
+            layout.push({
+              ...node,
+              x: currentX,
+              y: currentY + i * (nodeHeight + nodeSpacing)
+            });
+
+            maxYInRow = Math.max(
+              maxYInRow,
+              currentY + groupNodes.length * (nodeHeight + nodeSpacing)
+            );
+          });
+
+          currentX += 350;
+        });
+
+        return layout;
+      }
+
+      function createCircularLayout(nodes) {
+        const centerX = 800;
+        const centerY = 600;
+        const radius = 500;
+        const nodeWidth = 220;
+        const nodeHeight = 40;
+
+        const layout = nodes.map((node, i) => {
+          const angle = (i / nodes.length) * 2 * Math.PI;
+          return {
+            ...node,
+            x: centerX + radius * Math.cos(angle) - nodeWidth / 2,
+            y: centerY + radius * Math.sin(angle) - nodeHeight / 2
+          };
+        });
+
+        return layout;
+      }
+
+      function createDiagram() {
+        const { nodes, connections } = parseData(data);
+        parsedData = { nodes, connections };
+
+        let layout;
+        switch (currentLayout) {
+          case "grouped":
+            layout = createGroupedLayout(nodes);
+            break;
+          case "circular":
+            layout = createCircularLayout(nodes);
+            break;
+          default:
+            layout = createHierarchicalLayout(nodes);
+        }
+
+        const nodeWidth = 220;
+        const nodeHeight = 40;
+
+        const maxY = Math.max(...layout.map((n) => n.y)) + nodeHeight + 100;
+        const maxX = Math.max(...layout.map((n) => n.x)) + nodeWidth + 100;
+
+        const svg = document.getElementById("diagram");
+        svg.innerHTML = "";
+        svg.setAttribute("width", maxX);
+        svg.setAttribute("height", maxY);
+        svg.setAttribute("viewBox", `0 0 ${maxX} ${maxY}`);
+
+        const nodeLookup = new Map(layout.map((n) => [n.id, n]));
+
+        // Draw connections
+        const connectionsGroup = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "g"
+        );
+        connectionsGroup.setAttribute("id", "connections");
+        svg.appendChild(connectionsGroup);
+
+        connections.forEach((conn) => {
+          const source = nodeLookup.get(conn.source);
+          const target = nodeLookup.get(conn.target);
+
+          if (source && target) {
+            const path = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "path"
+            );
+            const sx = source.x + nodeWidth;
+            const sy = source.y + nodeHeight / 2;
+            const tx = target.x;
+            const ty = target.y + nodeHeight / 2;
+
+            const mx = (sx + tx) / 2;
+            const d = `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
+
+            const lineColor = getConnectionColor(source, target);
+
+            path.setAttribute("d", d);
+            path.setAttribute("class", "connection");
+            path.setAttribute("stroke", lineColor);
+            path.setAttribute("data-source", conn.source);
+            path.setAttribute("data-target", conn.target);
+
+            connectionsGroup.appendChild(path);
+          }
+        });
+
+        // Draw nodes
+        const nodesGroup = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "g"
+        );
+        nodesGroup.setAttribute("id", "nodes");
+        svg.appendChild(nodesGroup);
+
+        layout.forEach((node) => {
+          const group = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "g"
+          );
+          group.setAttribute("class", "node");
+          group.setAttribute("data-id", node.id);
+          group.setAttribute("data-type", node.type);
+
+          const colors = getNodeColor(node.type);
+
+          const rect = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+          );
+          rect.setAttribute("x", node.x);
+          rect.setAttribute("y", node.y);
+          rect.setAttribute("width", nodeWidth);
+          rect.setAttribute("height", nodeHeight);
+          rect.setAttribute("fill", colors.fill);
+          rect.setAttribute("stroke", colors.stroke);
+          rect.setAttribute("stroke-width", "2");
+          rect.setAttribute("rx", "8");
+
+          const text = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          text.setAttribute("x", node.x + nodeWidth / 2);
+          text.setAttribute("y", node.y + nodeHeight / 2);
+          text.setAttribute("text-anchor", "middle");
+          text.setAttribute("dominant-baseline", "middle");
+          text.setAttribute("fill", "white");
+          text.setAttribute("font-size", "11");
+          text.setAttribute("font-weight", "600");
+
+          const displayText =
+            node.id.length > 32 ? node.id.substring(0, 30) + "..." : node.id;
+          text.textContent = displayText;
+
+          group.appendChild(rect);
+          group.appendChild(text);
+          nodesGroup.appendChild(group);
+
+          group.addEventListener("mouseenter", () =>
+            highlightConnections(node.id, true)
+          );
+          group.addEventListener("mouseleave", () =>
+            highlightConnections(null, false)
+          );
+          group.addEventListener("mousemove", (e) => showTooltip(e, node.id));
+          group.addEventListener("mouseleave", hideTooltip);
+          group.addEventListener("click", () => selectNode(node.id));
+        });
+
+        // Update stats
+        const grouped = {
+          frontend: nodes.filter((n) => n.type === "frontend"),
+          backend: nodes.filter((n) => n.type === "backend"),
+          route: nodes.filter((n) => n.type === "route")
+        };
+
+        document.getElementById("totalNodes").textContent = nodes.length;
+        document.getElementById("totalConnections").textContent =
+          connections.length;
+        document.getElementById("frontendCount").textContent =
+          grouped.frontend.length;
+        document.getElementById("backendCount").textContent =
+          grouped.backend.length + grouped.route.length;
+      }
+
+      function highlightConnections(nodeId, highlight) {
+        const connections = document.querySelectorAll(".connection");
+        connections.forEach((conn) => {
+          if (
+            nodeId &&
+            (conn.dataset.source === nodeId || conn.dataset.target === nodeId)
+          ) {
+            conn.classList.toggle("highlighted", highlight);
+          } else {
+            conn.classList.remove("highlighted");
+          }
+        });
+      }
+
+      function showTooltip(e, text) {
+        const tooltip = document.getElementById("tooltip");
+        tooltip.textContent = text;
+        tooltip.style.display = "block";
+        tooltip.style.left = e.pageX + 15 + "px";
+        tooltip.style.top = e.pageY + 15 + "px";
+      }
+
+      function hideTooltip() {
+        const tooltip = document.getElementById("tooltip");
+        tooltip.style.display = "none";
+      }
+
+      function selectNode(nodeId) {
+        selectedNodeId = nodeId;
+
+        // Update visual selection
+        document.querySelectorAll(".node").forEach((node) => {
+          if (node.dataset.id === nodeId) {
+            node.classList.add("selected");
+            node.classList.remove("dimmed");
+          } else {
+            node.classList.remove("selected");
+            node.classList.add("dimmed");
+          }
+        });
+
+        // Highlight connections
+        const incoming = [];
+        const outgoing = [];
+
+        document.querySelectorAll(".connection").forEach((conn) => {
+          if (conn.dataset.target === nodeId) {
+            conn.classList.add("active-incoming");
+            conn.classList.remove("dimmed");
+            incoming.push(conn.dataset.source);
+          } else if (conn.dataset.source === nodeId) {
+            conn.classList.add("active-outgoing");
+            conn.classList.remove("dimmed");
+            outgoing.push(conn.dataset.target);
+          } else {
+            conn.classList.add("dimmed");
+            conn.classList.remove("active-incoming", "active-outgoing");
+          }
+        });
+
+        // Update details panel
+        updateDetailsPanel(nodeId, incoming, outgoing);
+
+        // Show overlay and panel
+        document.getElementById("focusOverlay").classList.add("active");
+        document.getElementById("detailsPanel").classList.add("active");
+      }
+
+      function updateDetailsPanel(nodeId, incoming, outgoing) {
+        const node = parsedData.nodes.find((n) => n.id === nodeId);
+
+        document.getElementById("detailsNodeName").textContent = nodeId;
+        document.getElementById("detailsNodeType").textContent = node.type;
+        document.getElementById("incomingCount").textContent = incoming.length;
+        document.getElementById("outgoingCount").textContent = outgoing.length;
+        document.getElementById("incomingBadge").textContent = incoming.length;
+        document.getElementById("outgoingBadge").textContent = outgoing.length;
+
+        // Incoming connections list
+        const incomingList = document.getElementById("incomingList");
+        if (incoming.length > 0) {
+          incomingList.innerHTML = incoming
+            .map(
+              (id) =>
+                `<div class="connection-item incoming" onclick="selectNode('${id}')">${id}</div>`
+            )
+            .join("");
+        } else {
+          incomingList.innerHTML =
+            '<div class="empty-state">No incoming connections</div>';
+        }
+
+        // Outgoing connections list
+        const outgoingList = document.getElementById("outgoingList");
+        if (outgoing.length > 0) {
+          outgoingList.innerHTML = outgoing
+            .map(
+              (id) =>
+                `<div class="connection-item outgoing" onclick="selectNode('${id}')">${id}</div>`
+            )
+            .join("");
+        } else {
+          outgoingList.innerHTML =
+            '<div class="empty-state">No outgoing connections</div>';
+        }
+      }
+
+      function deselectNode() {
+        selectedNodeId = null;
+
+        document.querySelectorAll(".node").forEach((node) => {
+          node.classList.remove("selected", "dimmed");
+        });
+
+        document.querySelectorAll(".connection").forEach((conn) => {
+          conn.classList.remove("dimmed", "active-incoming", "active-outgoing");
+        });
+
+        document.getElementById("focusOverlay").classList.remove("active");
+        document.getElementById("detailsPanel").classList.remove("active");
+      }
+
+      function updateZoom() {
+        const value = document.getElementById("zoomSlider").value;
+        currentScale = value / 100;
+        document.getElementById("zoomValue").textContent = value + "%";
+
+        const svg = document.getElementById("diagram");
+        const container = document.getElementById("svgContainer");
+        svg.style.transform = `scale(${currentScale})`;
+        svg.style.transformOrigin = "top left";
+      }
+
+      function resetView() {
+        document.getElementById("zoomSlider").value = 100;
+        currentScale = 1;
+        document.getElementById("zoomValue").textContent = "100%";
+
+        const svg = document.getElementById("diagram");
+        svg.style.transform = "scale(1)";
+
+        document.getElementById("svgContainer").scrollTo(0, 0);
+
+        if (selectedNodeId) {
+          deselectNode();
+        }
+      }
+
+      function fitToScreen() {
+        const container = document.getElementById("svgContainer");
+        const svg = document.getElementById("diagram");
+
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        const svgWidth = svg.getAttribute("width");
+        const svgHeight = svg.getAttribute("height");
+
+        const scaleX = containerWidth / svgWidth;
+        const scaleY = containerHeight / svgHeight;
+        const scale = Math.min(scaleX, scaleY, 1) * 0.95;
+
+        const zoomValue = Math.round(scale * 100);
+        document.getElementById("zoomSlider").value = zoomValue;
+        currentScale = scale;
+        document.getElementById("zoomValue").textContent = zoomValue + "%";
+
+        svg.style.transform = `scale(${currentScale})`;
+        svg.style.transformOrigin = "top left";
+      }
+
+      // Event listeners
+      document
+        .getElementById("layoutSelect")
+        .addEventListener("change", (e) => {
+          currentLayout = e.target.value;
+          createDiagram();
+          if (selectedNodeId) {
+            deselectNode();
+          }
+        });
+
+      document
+        .getElementById("zoomSlider")
+        .addEventListener("input", updateZoom);
+      document.getElementById("resetView").addEventListener("click", resetView);
+      document
+        .getElementById("fitToScreen")
+        .addEventListener("click", fitToScreen);
+      document
+        .getElementById("closeDetails")
+        .addEventListener("click", deselectNode);
+      document
+        .getElementById("focusOverlay")
+        .addEventListener("click", deselectNode);
+
+      // Initialize
+      createDiagram();
+    </script>
+  </body>
+</html>

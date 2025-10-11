@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppSelector } from '../../store';
 import { INDIAN_STATES } from '../../utils/regionMapping';
 import { logAuditEvent } from '../../services/auditService';
+import { getAllUsers, bulkAssignRegions } from '../../services/userService';
 import NotificationDialog from '../common/NotificationDialog';
 
 interface User {
@@ -38,19 +39,50 @@ const BulkRegionAssignment: React.FC = () => {
 
   useEffect(() => {
     loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadUsers = () => {
-    // Load users from localStorage
+  const loadUsers = async () => {
+    const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
+
+    if (USE_BACKEND) {
+      // Load users from backend API
+      try {
+        const backendUsers = await getAllUsers();
+        // Map backend user format to component User format
+        const mappedUsers: User[] = backendUsers
+          .filter((u: any) => u.role !== 'Admin' && u.role !== 'admin')
+          .map((u: any) => ({
+            id: u.id?.toString() || u.user_id || '',
+            name: u.full_name || u.name || u.username || '',
+            email: u.email || '',
+            role: u.role || 'User',
+            assignedRegions: u.assignedRegions || u.regions || []
+          }));
+        setUsers(mappedUsers);
+        console.log('📊 Bulk Assignment: Loaded real users from backend:', mappedUsers.length);
+      } catch (error) {
+        console.error('Failed to load users from backend:', error);
+        // Fallback to localStorage
+        loadUsersFromLocalStorage();
+      }
+    } else {
+      // Load from localStorage in mock mode
+      loadUsersFromLocalStorage();
+    }
+  };
+
+  const loadUsersFromLocalStorage = () => {
     try {
       const usersData = localStorage.getItem('users');
       if (usersData) {
         const parsedUsers: User[] = JSON.parse(usersData);
         // Filter out admin users
         setUsers(parsedUsers.filter(u => u.role !== 'Admin'));
+        console.log('📊 Bulk Assignment: Using mock users from localStorage:', parsedUsers.length);
       }
     } catch (error) {
-      console.error('Failed to load users:', error);
+      console.error('Failed to load users from localStorage:', error);
     }
   };
 
@@ -86,7 +118,7 @@ const BulkRegionAssignment: React.FC = () => {
     }
   };
 
-  const handleApplyBulkAssignment = () => {
+  const handleApplyBulkAssignment = async () => {
     if (selectedUsers.length === 0) {
       setNotification({
         isOpen: true,
@@ -107,7 +139,55 @@ const BulkRegionAssignment: React.FC = () => {
       return;
     }
 
-    // Update users
+    const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
+
+    if (USE_BACKEND) {
+      // Use backend API for bulk region assignment
+      try {
+        const result = await bulkAssignRegions(selectedUsers, selectedRegions, action);
+
+        console.log('✅ Bulk region assignment completed:', result);
+
+        setNotification({
+          isOpen: true,
+          type: 'success',
+          title: 'Bulk Assignment Completed',
+          message: result.message || `Successfully ${action}ed ${selectedRegions.length} region(s) for ${selectedUsers.length} user(s).`
+        });
+
+        // Reload users from backend
+        await loadUsers();
+
+        // Reset selections
+        setSelectedUsers([]);
+        setSelectedRegions([]);
+
+        // Log audit event
+        if (user) {
+          logAuditEvent(user, 'REGION_ASSIGNED', `Bulk ${action} regions`, {
+            severity: 'info',
+            details: {
+              action,
+              userCount: selectedUsers.length,
+              regionCount: selectedRegions.length,
+              regions: selectedRegions
+            },
+            success: true
+          });
+        }
+      } catch (error: any) {
+        console.error('Failed to apply bulk assignment:', error);
+        setNotification({
+          isOpen: true,
+          type: 'error',
+          title: 'Assignment Failed',
+          message: error.message || 'Failed to apply bulk assignment. Please try again.'
+        });
+      }
+      return;
+    }
+
+    // localStorage implementation (fallback)
     const updatedUsers = users.map(u => {
       if (!selectedUsers.includes(u.id)) {
         return u;

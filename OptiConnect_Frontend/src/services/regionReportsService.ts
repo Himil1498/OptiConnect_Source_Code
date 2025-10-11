@@ -135,8 +135,8 @@ const generateAccessDenialsReport = (format: 'csv' | 'json'): string => {
 /**
  * Generate temporary access report
  */
-const generateTemporaryAccessReport = (format: 'csv' | 'json'): string => {
-  const grants = getTemporaryAccess();
+const generateTemporaryAccessReport = async (format: 'csv' | 'json'): Promise<string> => {
+  const grants = await getTemporaryAccess();
 
   if (format === 'json') {
     return JSON.stringify(grants, null, 2);
@@ -265,12 +265,14 @@ const generateZoneAssignmentsReport = (format: 'csv' | 'json'): string => {
 /**
  * Generate comprehensive report (all data combined)
  */
-const generateComprehensiveReport = (format: 'csv' | 'json'): string => {
+const generateComprehensiveReport = async (format: 'csv' | 'json'): Promise<string> => {
   const summary = getAnalyticsSummary();
   const auditStats = getAuditLogStats();
-  const tempAccessStats = getTemporaryAccessStats();
+  const tempAccessStats = await getTemporaryAccessStats();
   const requestStats = getRegionRequestStats();
   const zoneStats = getZoneStats();
+
+  const tempGrants = await getTemporaryAccess();
 
   const comprehensiveData = {
     generatedAt: new Date().toISOString(),
@@ -287,7 +289,7 @@ const generateComprehensiveReport = (format: 'csv' | 'json'): string => {
     },
     regionUsage: getAllRegionUsageStats(),
     userActivity: getUserRegionActivity(),
-    temporaryGrants: getTemporaryAccess(),
+    temporaryGrants: tempGrants,
     regionRequests: getRegionRequests(),
     zoneAssignments: getZoneAssignments()
   };
@@ -326,7 +328,7 @@ const generateComprehensiveReport = (format: 'csv' | 'json'): string => {
 /**
  * Generate report based on type and options
  */
-export const generateReport = (options: ReportOptions): string => {
+export const generateReport = async (options: ReportOptions): Promise<string> => {
   switch (options.type) {
     case 'region_usage':
       return generateRegionUsageReport(options.format);
@@ -339,13 +341,13 @@ export const generateReport = (options: ReportOptions): string => {
         ? JSON.stringify(getAuditLogStats(), null, 2)
         : exportAuditLogsCSV();
     case 'temporary_access':
-      return generateTemporaryAccessReport(options.format);
+      return await generateTemporaryAccessReport(options.format);
     case 'region_requests':
       return generateRegionRequestsReport(options.format);
     case 'zone_assignments':
       return generateZoneAssignmentsReport(options.format);
     case 'comprehensive':
-      return generateComprehensiveReport(options.format);
+      return await generateComprehensiveReport(options.format);
     default:
       throw new Error(`Unknown report type: ${options.type}`);
   }
@@ -354,8 +356,8 @@ export const generateReport = (options: ReportOptions): string => {
 /**
  * Download report as file
  */
-export const downloadReport = (options: ReportOptions, filename?: string): void => {
-  const content = generateReport(options);
+export const downloadReport = async (options: ReportOptions, filename?: string): Promise<void> => {
+  const content = await generateReport(options);
   const extension = options.format === 'json' ? 'json' : 'csv';
   const mimeType = options.format === 'json' ? 'application/json' : 'text/csv';
 

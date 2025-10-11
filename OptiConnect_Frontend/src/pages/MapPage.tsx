@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useGoogleMaps } from "../contexts/GoogleMapsContext";
 import { useAppSelector, useAppDispatch } from "../store";
 import { addNotification } from "../store/slices/uiSlice";
+import { setMapInstance } from "../store/slices/mapSlice";
 import {
   getUserAssignedRegions,
   getRegionStyle,
@@ -80,6 +81,17 @@ const MapPage: React.FC = () => {
       setAssignedRegions(regions);
     }
   }, [user]);
+
+  // Cleanup: Clear map instance when component unmounts (navigating away)
+  useEffect(() => {
+    return () => {
+      if (mapInstance) {
+        console.log("🧹 Cleaning up map instance (navigating away from map page)");
+        // Clear Redux state to force recreation when returning
+        dispatch(setMapInstance(null));
+      }
+    };
+  }, [mapInstance, dispatch]);
 
   // Load boundary settings from localStorage
   useEffect(() => {
@@ -195,14 +207,25 @@ const MapPage: React.FC = () => {
   };
 
   // Create map instance with delay to ensure Google Maps is fully ready
+  // CRITICAL FIX: Always recreate map when component mounts or when returning to page
   useEffect(() => {
-    if (isLoaded && mapContainerRef.current && !mapInstance && window.google) {
+    if (isLoaded && mapContainerRef.current && window.google) {
+      // Check if map needs recreation
+      const needsRecreation = !mapInstance;
+
+      if (needsRecreation) {
+        console.log("🔄 Map needs recreation (navigated back to page or first load)");
+      } else {
+        console.log("✅ Map instance already exists, skipping creation");
+        return; // Don't create duplicate maps
+      }
+
       // Small delay to ensure Google Maps API is fully initialized
       const timer = setTimeout(() => {
         try {
           const map = createMap(mapContainerRef.current!);
           if (map) {
-            console.log("Map created successfully:", map);
+            console.log("✅ Map created successfully:", map);
 
             dispatch(
               addNotification({
@@ -215,7 +238,7 @@ const MapPage: React.FC = () => {
             );
           }
         } catch (error) {
-          console.error("Error creating map:", error);
+          console.error("❌ Error creating map:", error);
           dispatch(
             addNotification({
               type: "error",
@@ -229,7 +252,7 @@ const MapPage: React.FC = () => {
 
       return () => clearTimeout(timer);
     }
-  }, [isLoaded, createMap, mapInstance, dispatch]);
+  }, [isLoaded, mapContainerRef.current, mapInstance, createMap, dispatch]); // Check mapInstance to avoid duplicates
 
   // Load and style India GeoJSON with user's assigned regions highlighted
   useEffect(() => {

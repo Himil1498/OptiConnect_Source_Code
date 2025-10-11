@@ -470,7 +470,7 @@ export const isPointInAssignedRegion = async (
     console.log(`🎯 Final access decision: ${isAllowed ? '✅ ALLOWED' : '❌ DENIED'}`);
 
     // Also check for temporary access
-    const hasTemp = hasTemporaryAccess(user.id, detectedRegion);
+    const hasTemp = await hasTemporaryAccess(user.id, detectedRegion);
     if (hasTemp) {
       console.log(`🔑 User has temporary access to ${detectedRegion}`);
     }

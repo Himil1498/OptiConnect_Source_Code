@@ -1,0 +1,882 @@
+{
+  "nodes": [
+    "App.tsx",
+    "react-router-dom",
+    "components/common/ErrorBoundary.tsx",
+    "react-redux",
+    "redux-persist/integration/react",
+    "contexts/ThemeContext.tsx",
+    "contexts/GoogleMapsContext.tsx",
+    "contexts/AuthContext.tsx",
+    "components/common/NavigationBar.tsx",
+    "pages/LoginPage.tsx",
+    "pages/EmailVerificationPage.tsx",
+    "pages/ResendVerificationPage.tsx",
+    "pages/Dashboard.tsx",
+    "pages/MapPage.tsx",
+    "pages/UsersPage.tsx",
+    "pages/GroupsManagement.tsx",
+    "pages/AdminPage.tsx",
+    "pages/AnalyticsPage.tsx",
+    "components/admin/AuditLogViewer.tsx",
+    "components/common/ConfirmDialog.tsx",
+    "components/admin/BulkRegionAssignment.tsx",
+    "components/common/NotificationDialog.tsx",
+    "components/admin/RegionReportsExport.tsx",
+    "components/admin/RegionRequestManagement.tsx",
+    "components/admin/TemporaryAccessManagement.tsx",
+    "@heroicons/react/24/outline",
+    "components/dashboard/DashboardLayout.tsx",
+    "components/common/PageContainer.tsx",
+    "components/dashboard/KPICards.tsx",
+    "components/dashboard/UserStatsPanel.tsx",
+    "components/dashboard/ToolUsageChart.tsx",
+    "components/dashboard/SystemHealthMonitor.tsx",
+    "react-chartjs-2",
+    "components/map/MapSearchBox.tsx",
+    "components/map/MapToolbar.tsx",
+    "components/search/GlobalSearch.tsx",
+    "components/map/MapControlsPanel.tsx",
+    "components/tools/DistanceMeasurementTool.tsx",
+    "components/tools/PolygonDrawingTool.tsx",
+    "components/tools/CircleDrawingTool.tsx",
+    "components/tools/ElevationProfileTool.tsx",
+    "components/tools/InfrastructureManagementTool.tsx",
+    "components/tools/SectorRFTool.tsx",
+    "components/tools/DataHub.tsx",
+    "components/user/RegionAccessRequestForm.tsx",
+    "components/users/UserManagement.tsx",
+    "components/users/UserPermissionsDialog.tsx",
+    "components/common/DeleteUserDialog.tsx",
+    "index.tsx",
+    "react",
+    "components/common/ModeIndicator.tsx",
+    "components/common/Footer.tsx",
+    "components/groups/GroupsList.tsx",
+    "components/groups/GroupForm.tsx",
+    "components/groups/GroupDetailsDialog.tsx",
+    "components/map/CoordinatesDisplay.tsx",
+    "components/map/MapSettings.tsx",
+    "utils/indiaBoundaryCheck.ts",
+    "/india.json",
+    "ROUTE:/api/",
+    "server.js",
+    "ROUTE:/",
+    "ROUTE:/api/health",
+    "ROUTE:/api/auth",
+    "ROUTE:/api/users",
+    "ROUTE:/api/regions",
+    "ROUTE:/api/groups",
+    "ROUTE:/api/features",
+    "ROUTE:/api/measurements/distance",
+    "ROUTE:/api/drawings/polygon",
+    "ROUTE:/api/drawings/circle",
+    "ROUTE:/api/rf/sectors",
+    "ROUTE:/api/elevation",
+    "ROUTE:/api/infrastructure",
+    "ROUTE:/api/layers",
+    "ROUTE:/api/bookmarks",
+    "ROUTE:/api/search",
+    "ROUTE:/api/analytics",
+    "ROUTE:/api/audit",
+    "ROUTE:/api/preferences",
+    "ROUTE:/api/datahub",
+    "ROUTE:/api/temporary-access",
+    "ROUTE:/api/region-requests",
+    "ROUTE:/api/permissions",
+    "ROUTE:/dashboard",
+    "src/routes/analytics.routes.js",
+    "ROUTE:/users",
+    "ROUTE:/regions",
+    "ROUTE:/features",
+    "ROUTE:/track",
+    "ROUTE:/logs",
+    "src/routes/audit.routes.js",
+    "ROUTE:/logs/:id",
+    "ROUTE:/user/:userId",
+    "ROUTE:/login",
+    "src/routes/auth.routes.js",
+    "ROUTE:/register",
+    "ROUTE:/me",
+    "ROUTE:/change-password",
+    "ROUTE:/logout",
+    "ROUTE:/verify",
+    "ROUTE:/verify-email/:token",
+    "ROUTE:/resend-verification",
+    "src/routes/bookmark.routes.js",
+    "ROUTE:/:id",
+    "src/routes/circleDrawing.routes.js",
+    "ROUTE:/import",
+    "src/routes/dataHub.routes.js",
+    "ROUTE:/imports",
+    "ROUTE:/export",
+    "ROUTE:/exports",
+    "ROUTE:/exports/:id/download",
+    "src/routes/distanceMeasurement.routes.js",
+    "ROUTE:/profiles",
+    "src/routes/elevationProfile.routes.js",
+    "ROUTE:/profiles/:id",
+    "ROUTE:/calculate",
+    "src/routes/feature.routes.js",
+    "ROUTE:/nearby",
+    "ROUTE:/region/:regionId",
+    "src/routes/group.routes.js",
+    "ROUTE:/:id/members",
+    "ROUTE:/:id/members/:userId",
+    "src/routes/infrastructure.routes.js",
+    "ROUTE:/:id/status",
+    "ROUTE:/:id/upload-photo",
+    "src/routes/layerManagement.routes.js",
+    "ROUTE:/:id/visibility",
+    "ROUTE:/:id/share",
+    "src/routes/permission.routes.js",
+    "src/routes/polygonDrawing.routes.js",
+    "src/routes/preferences.routes.js",
+    "src/routes/region.routes.js",
+    "ROUTE:/hierarchy",
+    "ROUTE:/:id/children",
+    "ROUTE:/:id/users",
+    "src/routes/regionRequest.routes.js",
+    "ROUTE:/:id/approve",
+    "ROUTE:/:id/reject",
+    "ROUTE:/global",
+    "src/routes/search.routes.js",
+    "ROUTE:/history",
+    "ROUTE:/history/:id",
+    "src/routes/sectorRF.routes.js",
+    "ROUTE:/:id/calculate",
+    "src/routes/temporaryAccess.routes.js",
+    "src/routes/user.routes.js",
+    "ROUTE:/bulk-delete",
+    "ROUTE:/:id/activate",
+    "ROUTE:/:id/deactivate",
+    "ROUTE:/:id/regions",
+    "ROUTE:/:id/regions/:regionId"
+  ],
+  "edges": [
+    {
+      "from": "App.tsx",
+      "to": "react-router-dom"
+    },
+    {
+      "from": "App.tsx",
+      "to": "components/common/ErrorBoundary.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "react-redux"
+    },
+    {
+      "from": "App.tsx",
+      "to": "redux-persist/integration/react"
+    },
+    {
+      "from": "App.tsx",
+      "to": "contexts/ThemeContext.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "contexts/GoogleMapsContext.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "contexts/AuthContext.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "components/common/NavigationBar.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/LoginPage.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/EmailVerificationPage.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/ResendVerificationPage.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/Dashboard.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/MapPage.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/UsersPage.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/GroupsManagement.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/AdminPage.tsx"
+    },
+    {
+      "from": "App.tsx",
+      "to": "pages/AnalyticsPage.tsx"
+    },
+    {
+      "from": "components/admin/AuditLogViewer.tsx",
+      "to": "components/common/ConfirmDialog.tsx"
+    },
+    {
+      "from": "components/admin/BulkRegionAssignment.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/admin/RegionReportsExport.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/admin/RegionRequestManagement.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/admin/TemporaryAccessManagement.tsx",
+      "to": "@heroicons/react/24/outline"
+    },
+    {
+      "from": "components/admin/TemporaryAccessManagement.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/common/ConfirmDialog.tsx",
+      "to": "@heroicons/react/24/outline"
+    },
+    {
+      "from": "components/common/NavigationBar.tsx",
+      "to": "react-router-dom"
+    },
+    {
+      "from": "components/common/NotificationDialog.tsx",
+      "to": "@heroicons/react/24/outline"
+    },
+    {
+      "from": "components/dashboard/DashboardLayout.tsx",
+      "to": "components/common/PageContainer.tsx"
+    },
+    {
+      "from": "components/dashboard/DashboardLayout.tsx",
+      "to": "components/dashboard/KPICards.tsx"
+    },
+    {
+      "from": "components/dashboard/DashboardLayout.tsx",
+      "to": "components/dashboard/UserStatsPanel.tsx"
+    },
+    {
+      "from": "components/dashboard/DashboardLayout.tsx",
+      "to": "components/dashboard/ToolUsageChart.tsx"
+    },
+    {
+      "from": "components/dashboard/DashboardLayout.tsx",
+      "to": "components/dashboard/SystemHealthMonitor.tsx"
+    },
+    {
+      "from": "components/dashboard/ToolUsageChart.tsx",
+      "to": "react-chartjs-2"
+    },
+    {
+      "from": "components/map/MapSearchBox.tsx",
+      "to": "@heroicons/react/24/outline"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/search/GlobalSearch.tsx"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/map/MapControlsPanel.tsx"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/tools/DistanceMeasurementTool.tsx"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/tools/PolygonDrawingTool.tsx"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/tools/CircleDrawingTool.tsx"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/tools/ElevationProfileTool.tsx"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/tools/InfrastructureManagementTool.tsx"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/tools/SectorRFTool.tsx"
+    },
+    {
+      "from": "components/map/MapToolbar.tsx",
+      "to": "components/tools/DataHub.tsx"
+    },
+    {
+      "from": "components/tools/CircleDrawingTool.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/tools/DataHub.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/tools/DistanceMeasurementTool.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/tools/ElevationProfileTool.tsx",
+      "to": "react-chartjs-2"
+    },
+    {
+      "from": "components/tools/ElevationProfileTool.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/tools/InfrastructureManagementTool.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/tools/PolygonDrawingTool.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/tools/SectorRFTool.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/user/RegionAccessRequestForm.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "components/users/UserManagement.tsx",
+      "to": "components/users/UserPermissionsDialog.tsx"
+    },
+    {
+      "from": "components/users/UserManagement.tsx",
+      "to": "components/common/DeleteUserDialog.tsx"
+    },
+    {
+      "from": "index.tsx",
+      "to": "react"
+    },
+    {
+      "from": "index.tsx",
+      "to": "App.tsx"
+    },
+    {
+      "from": "pages/AdminPage.tsx",
+      "to": "components/common/PageContainer.tsx"
+    },
+    {
+      "from": "pages/AdminPage.tsx",
+      "to": "components/admin/AuditLogViewer.tsx"
+    },
+    {
+      "from": "pages/AdminPage.tsx",
+      "to": "components/admin/RegionRequestManagement.tsx"
+    },
+    {
+      "from": "pages/AdminPage.tsx",
+      "to": "components/admin/BulkRegionAssignment.tsx"
+    },
+    {
+      "from": "pages/AdminPage.tsx",
+      "to": "components/admin/TemporaryAccessManagement.tsx"
+    },
+    {
+      "from": "pages/AdminPage.tsx",
+      "to": "components/admin/RegionReportsExport.tsx"
+    },
+    {
+      "from": "pages/AnalyticsPage.tsx",
+      "to": "components/dashboard/DashboardLayout.tsx"
+    },
+    {
+      "from": "pages/Dashboard.tsx",
+      "to": "components/common/PageContainer.tsx"
+    },
+    {
+      "from": "pages/Dashboard.tsx",
+      "to": "components/common/ModeIndicator.tsx"
+    },
+    {
+      "from": "pages/Dashboard.tsx",
+      "to": "components/common/Footer.tsx"
+    },
+    {
+      "from": "pages/GroupsManagement.tsx",
+      "to": "components/common/PageContainer.tsx"
+    },
+    {
+      "from": "pages/GroupsManagement.tsx",
+      "to": "components/groups/GroupsList.tsx"
+    },
+    {
+      "from": "pages/GroupsManagement.tsx",
+      "to": "components/groups/GroupForm.tsx"
+    },
+    {
+      "from": "pages/GroupsManagement.tsx",
+      "to": "components/groups/GroupDetailsDialog.tsx"
+    },
+    {
+      "from": "pages/GroupsManagement.tsx",
+      "to": "components/common/ConfirmDialog.tsx"
+    },
+    {
+      "from": "pages/GroupsManagement.tsx",
+      "to": "components/common/NotificationDialog.tsx"
+    },
+    {
+      "from": "pages/LoginPage.tsx",
+      "to": "react-router-dom"
+    },
+    {
+      "from": "pages/LoginPage.tsx",
+      "to": "components/common/ModeIndicator.tsx"
+    },
+    {
+      "from": "pages/MapPage.tsx",
+      "to": "components/common/PageContainer.tsx"
+    },
+    {
+      "from": "pages/MapPage.tsx",
+      "to": "components/map/MapToolbar.tsx"
+    },
+    {
+      "from": "pages/MapPage.tsx",
+      "to": "components/map/CoordinatesDisplay.tsx"
+    },
+    {
+      "from": "pages/MapPage.tsx",
+      "to": "components/map/MapSettings.tsx"
+    },
+    {
+      "from": "pages/UsersPage.tsx",
+      "to": "components/users/UserManagement.tsx"
+    },
+    {
+      "from": "utils/indiaBoundaryCheck.ts",
+      "to": "/india.json"
+    },
+    {
+      "from": "utils/indiaBoundaryCheck.ts",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/bookmark.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/circleDrawing.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/distanceMeasurement.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/feature.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/group.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/infrastructure.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/layerManagement.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/permission.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/polygonDrawing.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/preferences.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/region.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/regionRequest.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/sectorRF.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/temporaryAccess.routes.js"
+    },
+    {
+      "from": "ROUTE:/",
+      "to": "src/routes/user.routes.js"
+    },
+    {
+      "from": "ROUTE:/api/health",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/auth",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/users",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/regions",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/groups",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/features",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/measurements/distance",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/drawings/polygon",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/drawings/circle",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/rf/sectors",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/elevation",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/infrastructure",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/layers",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/bookmarks",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/search",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/analytics",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/audit",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/preferences",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/datahub",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/temporary-access",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/region-requests",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/api/permissions",
+      "to": "server.js"
+    },
+    {
+      "from": "ROUTE:/dashboard",
+      "to": "src/routes/analytics.routes.js"
+    },
+    {
+      "from": "ROUTE:/users",
+      "to": "src/routes/analytics.routes.js"
+    },
+    {
+      "from": "ROUTE:/users",
+      "to": "src/routes/search.routes.js"
+    },
+    {
+      "from": "ROUTE:/regions",
+      "to": "src/routes/analytics.routes.js"
+    },
+    {
+      "from": "ROUTE:/regions",
+      "to": "src/routes/search.routes.js"
+    },
+    {
+      "from": "ROUTE:/features",
+      "to": "src/routes/analytics.routes.js"
+    },
+    {
+      "from": "ROUTE:/features",
+      "to": "src/routes/search.routes.js"
+    },
+    {
+      "from": "ROUTE:/track",
+      "to": "src/routes/analytics.routes.js"
+    },
+    {
+      "from": "ROUTE:/logs",
+      "to": "src/routes/audit.routes.js"
+    },
+    {
+      "from": "ROUTE:/logs/:id",
+      "to": "src/routes/audit.routes.js"
+    },
+    {
+      "from": "ROUTE:/user/:userId",
+      "to": "src/routes/audit.routes.js"
+    },
+    {
+      "from": "ROUTE:/login",
+      "to": "src/routes/auth.routes.js"
+    },
+    {
+      "from": "ROUTE:/register",
+      "to": "src/routes/auth.routes.js"
+    },
+    {
+      "from": "ROUTE:/me",
+      "to": "src/routes/auth.routes.js"
+    },
+    {
+      "from": "ROUTE:/change-password",
+      "to": "src/routes/auth.routes.js"
+    },
+    {
+      "from": "ROUTE:/logout",
+      "to": "src/routes/auth.routes.js"
+    },
+    {
+      "from": "ROUTE:/verify",
+      "to": "src/routes/auth.routes.js"
+    },
+    {
+      "from": "ROUTE:/verify-email/:token",
+      "to": "src/routes/auth.routes.js"
+    },
+    {
+      "from": "ROUTE:/resend-verification",
+      "to": "src/routes/auth.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/bookmark.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/circleDrawing.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/distanceMeasurement.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/feature.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/group.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/infrastructure.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/layerManagement.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/permission.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/polygonDrawing.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/region.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/sectorRF.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/temporaryAccess.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id",
+      "to": "src/routes/user.routes.js"
+    },
+    {
+      "from": "ROUTE:/import",
+      "to": "src/routes/dataHub.routes.js"
+    },
+    {
+      "from": "ROUTE:/imports",
+      "to": "src/routes/dataHub.routes.js"
+    },
+    {
+      "from": "ROUTE:/export",
+      "to": "src/routes/dataHub.routes.js"
+    },
+    {
+      "from": "ROUTE:/exports",
+      "to": "src/routes/dataHub.routes.js"
+    },
+    {
+      "from": "ROUTE:/exports/:id/download",
+      "to": "src/routes/dataHub.routes.js"
+    },
+    {
+      "from": "ROUTE:/profiles",
+      "to": "src/routes/elevationProfile.routes.js"
+    },
+    {
+      "from": "ROUTE:/profiles/:id",
+      "to": "src/routes/elevationProfile.routes.js"
+    },
+    {
+      "from": "ROUTE:/calculate",
+      "to": "src/routes/elevationProfile.routes.js"
+    },
+    {
+      "from": "ROUTE:/nearby",
+      "to": "src/routes/feature.routes.js"
+    },
+    {
+      "from": "ROUTE:/region/:regionId",
+      "to": "src/routes/feature.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/members",
+      "to": "src/routes/group.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/members/:userId",
+      "to": "src/routes/group.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/status",
+      "to": "src/routes/infrastructure.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/upload-photo",
+      "to": "src/routes/infrastructure.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/visibility",
+      "to": "src/routes/layerManagement.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/share",
+      "to": "src/routes/layerManagement.routes.js"
+    },
+    {
+      "from": "ROUTE:/hierarchy",
+      "to": "src/routes/region.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/children",
+      "to": "src/routes/region.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/users",
+      "to": "src/routes/region.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/approve",
+      "to": "src/routes/regionRequest.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/reject",
+      "to": "src/routes/regionRequest.routes.js"
+    },
+    {
+      "from": "ROUTE:/global",
+      "to": "src/routes/search.routes.js"
+    },
+    {
+      "from": "ROUTE:/history",
+      "to": "src/routes/search.routes.js"
+    },
+    {
+      "from": "ROUTE:/history/:id",
+      "to": "src/routes/search.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/calculate",
+      "to": "src/routes/sectorRF.routes.js"
+    },
+    {
+      "from": "ROUTE:/bulk-delete",
+      "to": "src/routes/user.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/activate",
+      "to": "src/routes/user.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/deactivate",
+      "to": "src/routes/user.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/regions",
+      "to": "src/routes/user.routes.js"
+    },
+    {
+      "from": "ROUTE:/:id/regions/:regionId",
+      "to": "src/routes/user.routes.js"
+    }
+  ]
+}

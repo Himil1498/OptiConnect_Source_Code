@@ -202,9 +202,17 @@ const MapControlsPanel: React.FC<MapControlsPanelProps> = ({ map, onOpenSettings
 
   /**
    * Refresh Map - Force re-render and tile reload
+   * If map is null (navigated away and back), reload the page to recreate map
    */
   const handleRefreshMap = () => {
-    if (!map) return;
+    if (!map) {
+      console.warn('⚠️ Map instance is missing - reloading page to recreate map');
+      // Force page reload to recreate map
+      window.location.reload();
+      return;
+    }
+
+    console.log('🔄 Refreshing map...');
 
     // Store current state
     const currentCenter = map.getCenter();
@@ -212,7 +220,7 @@ const MapControlsPanel: React.FC<MapControlsPanelProps> = ({ map, onOpenSettings
     const currentMapType = map.getMapTypeId();
 
     if (currentCenter && currentZoom) {
-      // Trigger resize event
+      // Trigger resize event to redraw tiles
       google.maps.event.trigger(map, 'resize');
 
       // Force reload by slightly changing zoom
@@ -226,6 +234,7 @@ const MapControlsPanel: React.FC<MapControlsPanelProps> = ({ map, onOpenSettings
         if (currentMapType) {
           map.setMapTypeId(currentMapType);
         }
+        console.log('✅ Map refreshed successfully');
       }, 50);
     }
   };

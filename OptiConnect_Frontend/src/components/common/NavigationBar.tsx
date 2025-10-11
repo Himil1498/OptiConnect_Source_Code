@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAppSelector } from "../../store";
+import { getActiveTemporaryAccess } from "../../services/temporaryAccessService";
 
 const NavigationBar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -12,7 +13,31 @@ const NavigationBar: React.FC = () => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = React.useState(false);
+  const [temporaryAccessCount, setTemporaryAccessCount] = React.useState(0);
+  const [tempRegions, setTempRegions] = React.useState<string[]>([]);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Fetch temporary access on component mount and when dropdown opens
+  React.useEffect(() => {
+    const fetchTemporaryAccess = async () => {
+      if (user?.id) {
+        try {
+          const activeAccess = await getActiveTemporaryAccess(user.id);
+          setTemporaryAccessCount(activeAccess.length);
+          setTempRegions(activeAccess.map(access => access.region));
+        } catch (error) {
+          console.error('Error fetching temporary access:', error);
+        }
+      }
+    };
+
+    if (isAuthenticated && user) {
+      fetchTemporaryAccess();
+      // Refresh every 60 seconds
+      const interval = setInterval(fetchTemporaryAccess, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [user, isAuthenticated]);
 
   // Close profile dropdown on outside click
   React.useEffect(() => {
@@ -272,8 +297,16 @@ const NavigationBar: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    {/* Online status indicator */}
-                    <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800 ring-2 ring-green-500/30 animate-pulse"></div>
+                    {/* Online status indicator or Temporary Access indicator */}
+                    {temporaryAccessCount > 0 ? (
+                      <div className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-amber-500 border-2 border-white dark:border-gray-800 ring-2 ring-amber-500/30 flex items-center justify-center" title={`${temporaryAccessCount} temporary access grants`}>
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800 ring-2 ring-green-500/30 animate-pulse"></div>
+                    )}
                   </div>
                 </div>
                 <div className="hidden md:block text-left">
@@ -328,13 +361,23 @@ const NavigationBar: React.FC = () => {
                           {user?.email}
                         </p>
                         {/* Role Badge */}
-                        <div className="mt-2">
+                        <div className="mt-2 flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md">
                             <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                             </svg>
                             {user?.role}
                           </span>
+
+                          {/* Temporary Access Badge */}
+                          {temporaryAccessCount > 0 && (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md animate-pulse">
+                              <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Temp Access ({temporaryAccessCount})
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -381,6 +424,33 @@ const NavigationBar: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Temporary Access Regions */}
+                  {tempRegions.length > 0 && (
+                    <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10">
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Temporary Access Regions
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                        {tempRegions.slice(0, 6).map((region: string) => (
+                          <span
+                            key={region}
+                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
+                          >
+                            {region}
+                          </span>
+                        ))}
+                        {tempRegions.length > 6 && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200">
+                            +{tempRegions.length - 6} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Assigned Regions Preview */}
                   {user?.assignedRegions && user.assignedRegions.length > 0 && (
