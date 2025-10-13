@@ -34,9 +34,9 @@ const RegionAccessRequestForm: React.FC = () => {
     }
   }, [user]);
 
-  const loadUserRequests = () => {
+  const loadUserRequests = async () => {
     if (!user) return;
-    const requests = getUserRegionRequests(user.id);
+    const requests = await getUserRegionRequests(user.id);
     setUserRequests(requests);
   };
 
@@ -69,7 +69,7 @@ const RegionAccessRequestForm: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      createRegionRequest(user, selectedRegions, reason);
+      await createRegionRequest(user, selectedRegions, reason);
 
       showNotification(
         'success',
@@ -82,7 +82,7 @@ const RegionAccessRequestForm: React.FC = () => {
       setReason('');
 
       // Reload requests
-      loadUserRequests();
+      await loadUserRequests();
     } catch (error) {
       showNotification('error', 'Submission Failed', 'Failed to submit region access request. Please try again.');
       console.error('Error submitting request:', error);
@@ -91,14 +91,14 @@ const RegionAccessRequestForm: React.FC = () => {
     }
   };
 
-  const handleCancelRequest = (requestId: string) => {
+  const handleCancelRequest = async (requestId: string) => {
     if (!user) return;
 
     if (window.confirm('Are you sure you want to cancel this request?')) {
-      const result = cancelRegionRequest(requestId, user);
+      const result = await cancelRegionRequest(requestId, user);
       if (result) {
         showNotification('success', 'Request Cancelled', 'Your region access request has been cancelled.');
-        loadUserRequests();
+        await loadUserRequests();
       } else {
         showNotification('error', 'Cancellation Failed', 'Failed to cancel request. It may have already been reviewed.');
       }

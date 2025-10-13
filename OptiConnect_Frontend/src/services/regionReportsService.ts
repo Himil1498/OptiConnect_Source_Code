@@ -178,8 +178,8 @@ const generateTemporaryAccessReport = async (format: 'csv' | 'json'): Promise<st
 /**
  * Generate region requests report
  */
-const generateRegionRequestsReport = (format: 'csv' | 'json'): string => {
-  const requests = getRegionRequests();
+const generateRegionRequestsReport = async (format: 'csv' | 'json'): Promise<string> => {
+  const requests = await getRegionRequests();
 
   if (format === 'json') {
     return JSON.stringify(requests, null, 2);
@@ -269,10 +269,11 @@ const generateComprehensiveReport = async (format: 'csv' | 'json'): Promise<stri
   const summary = getAnalyticsSummary();
   const auditStats = getAuditLogStats();
   const tempAccessStats = await getTemporaryAccessStats();
-  const requestStats = getRegionRequestStats();
+  const requestStats = await getRegionRequestStats();
   const zoneStats = getZoneStats();
 
   const tempGrants = await getTemporaryAccess();
+  const regionRequests = await getRegionRequests();
 
   const comprehensiveData = {
     generatedAt: new Date().toISOString(),
@@ -290,7 +291,7 @@ const generateComprehensiveReport = async (format: 'csv' | 'json'): Promise<stri
     regionUsage: getAllRegionUsageStats(),
     userActivity: getUserRegionActivity(),
     temporaryGrants: tempGrants,
-    regionRequests: getRegionRequests(),
+    regionRequests: regionRequests,
     zoneAssignments: getZoneAssignments()
   };
 
@@ -343,7 +344,7 @@ export const generateReport = async (options: ReportOptions): Promise<string> =>
     case 'temporary_access':
       return await generateTemporaryAccessReport(options.format);
     case 'region_requests':
-      return generateRegionRequestsReport(options.format);
+      return await generateRegionRequestsReport(options.format);
     case 'zone_assignments':
       return generateZoneAssignmentsReport(options.format);
     case 'comprehensive':

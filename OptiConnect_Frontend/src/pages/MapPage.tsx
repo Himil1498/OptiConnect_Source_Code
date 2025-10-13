@@ -74,12 +74,21 @@ const MapPage: React.FC = () => {
   //   lng: 78.9629
   // });
 
-  // Get user's assigned regions
+  // Get user's assigned regions (including temporary access) - refresh every 10 seconds
   useEffect(() => {
-    if (user) {
-      const regions = getUserAssignedRegions(user);
-      setAssignedRegions(regions);
-    }
+    const fetchRegions = async () => {
+      if (user) {
+        const regions = await getUserAssignedRegions(user);
+        console.log('🗺️ Updated map regions:', regions);
+        setAssignedRegions(regions);
+      }
+    };
+
+    fetchRegions();
+
+    // Refresh every 10 seconds to check for expired temporary access
+    const interval = setInterval(fetchRegions, 10000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // Cleanup: Clear map instance when component unmounts (navigating away)

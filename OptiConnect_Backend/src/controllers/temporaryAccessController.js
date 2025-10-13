@@ -1,6 +1,46 @@
 const { pool } = require('../config/database');
 
 /**
+ * Calculate human-readable time remaining
+ * @param {number} seconds - Seconds remaining until expiration
+ * @returns {object} Time remaining breakdown
+ */
+const calculateTimeRemaining = (seconds) => {
+  if (!seconds || seconds <= 0) {
+    return {
+      expired: true,
+      display: 'Expired',
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      total_seconds: 0
+    };
+  }
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  let display = '';
+  if (days > 0) display += `${days}d `;
+  if (hours > 0) display += `${hours}h `;
+  if (minutes > 0) display += `${minutes}m `;
+  if (secs > 0 && days === 0) display += `${secs}s`;
+
+  return {
+    expired: false,
+    display: display.trim() || 'Just now',
+    days,
+    hours,
+    minutes,
+    seconds: secs,
+    total_seconds: seconds
+  };
+};
+
+/**
  * @route   GET /api/temporary-access
  * @desc    Get all temporary access grants (admin/manager)
  * @access  Private (Admin/Manager)
@@ -8,7 +48,7 @@ const { pool } = require('../config/database');
 const getAllTemporaryAccess = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = req.user.role?.toLowerCase(); // Case-insensitive role check
 
     if (userRole !== 'admin' && userRole !== 'manager') {
       return res.status(403).json({
@@ -26,7 +66,8 @@ const getAllTemporaryAccess = async (req, res) => {
              u.email,
              r.name as region_name,
              r.code as region_code,
-             granter.username as granted_by_username
+             granter.username as granted_by_username,
+             TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), ta.expires_at) as seconds_remaining
       FROM temporary_access ta
       INNER JOIN users u ON ta.user_id = u.id
       INNER JOIN regions r ON ta.resource_id = r.id
@@ -37,11 +78,11 @@ const getAllTemporaryAccess = async (req, res) => {
 
     if (status) {
       if (status === 'active') {
-        query += ' AND ta.revoked_at IS NULL AND ta.expires_at > NOW()';
+        query += ' AND ta.revoked_at IS NULL AND ta.expires_at > UTC_TIMESTAMP()';
       } else if (status === 'revoked') {
         query += ' AND ta.revoked_at IS NOT NULL';
       } else if (status === 'expired') {
-        query += ' AND ta.revoked_at IS NULL AND ta.expires_at <= NOW()';
+        query += ' AND ta.revoked_at IS NULL AND ta.expires_at <= UTC_TIMESTAMP()';
       }
     }
 
@@ -54,7 +95,13 @@ const getAllTemporaryAccess = async (req, res) => {
 
     const [access] = await pool.query(query, params);
 
-    res.json({ success: true, access });
+    // Add time remaining calculation
+    const accessWithTimeRemaining = access.map(grant => ({
+      ...grant,
+      time_remaining: calculateTimeRemaining(grant.seconds_remaining)
+    }));
+
+    res.json({ success: true, access: accessWithTimeRemaining });
   } catch (error) {
     console.error('Get temporary access error:', error);
     res.status(500).json({ success: false, error: 'Failed to get temporary access' });
@@ -69,7 +116,7 @@ const getAllTemporaryAccess = async (req, res) => {
 const grantTemporaryAccess = async (req, res) => {
   try {
     const granterId = req.user.id;
-    const granterRole = req.user.role;
+    const granterRole = req.user.role?.toLowerCase(); // Case-insensitive role check
 
     if (granterRole !== 'admin' && granterRole !== 'manager') {
       return res.status(403).json({
@@ -80,7 +127,21 @@ const grantTemporaryAccess = async (req, res) => {
 
     const { user_id, region_name, access_level, expires_at, reason } = req.body;
 
+    // Log the request body for debugging
+    console.log('📨 Grant temporary access request:', {
+      user_id,
+      region_name,
+      expires_at,
+      access_level,
+      reason
+    });
+
     if (!user_id || !region_name || !expires_at) {
+      console.log('❌ Validation failed:', {
+        hasUserId: !!user_id,
+        hasRegionName: !!region_name,
+        hasExpiresAt: !!expires_at
+      });
       return res.status(400).json({
         success: false,
         error: 'User ID, region name, and expires_at are required'
@@ -108,9 +169,10 @@ const grantTemporaryAccess = async (req, res) => {
     );
 
     if (existingAccess.length > 0) {
+      console.log(`⚠️ User ${user_id} already has permanent access to region ${regionId}`);
       return res.status(400).json({
         success: false,
-        error: 'User already has permanent access to this region'
+        error: 'User already has permanent access to this region. Remove permanent access first to grant temporary access.'
       });
     }
 
@@ -118,7 +180,7 @@ const grantTemporaryAccess = async (req, res) => {
     const [existingTemp] = await pool.query(
       `SELECT id FROM temporary_access
        WHERE user_id = ? AND resource_type = 'region' AND resource_id = ?
-       AND revoked_at IS NULL AND expires_at > NOW()`,
+       AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()`,
       [user_id, regionId]
     );
 
@@ -128,6 +190,18 @@ const grantTemporaryAccess = async (req, res) => {
         error: 'User already has active temporary access to this region'
       });
     }
+
+    // Log received expires_at for debugging
+    console.log('🕐 Expires_at received from frontend:', expires_at);
+    console.log('🕐 Current server time (local):', new Date());
+    console.log('🕐 Current server time (UTC):', new Date().toISOString());
+
+    // Convert to UTC for consistent storage
+    const expiresDate = new Date(expires_at);
+    const mysqlDateTime = expiresDate.toISOString().slice(0, 19).replace('T', ' ');
+
+    console.log('🕐 MySQL datetime being stored (UTC):', mysqlDateTime);
+    console.log('🕐 Difference from now (minutes):', Math.round((expiresDate - new Date()) / 60000));
 
     const [result] = await pool.query(
       `INSERT INTO temporary_access
@@ -139,9 +213,25 @@ const grantTemporaryAccess = async (req, res) => {
         access_level || 'read',
         reason,
         granterId,
-        expires_at
+        mysqlDateTime
       ]
     );
+
+    console.log(`✅ Created temporary access grant ID: ${result.insertId}`);
+    console.log(`   User: ${users[0].full_name} (${user_id})`);
+    console.log(`   Region: ${region_name} (${regionId})`);
+    console.log(`   Expires: ${expires_at}`);
+
+    // Also add temporary access to user_regions table for actual region access
+    // This allows the user to access the region in the map
+    await pool.query(
+      `INSERT INTO user_regions (user_id, region_id, access_level, assigned_by)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE access_level = ?, assigned_by = ?`,
+      [user_id, regionId, access_level || 'read', granterId, access_level || 'read', granterId]
+    );
+
+    console.log(`✅ Added region access to user_regions table for temporary access`);
 
     res.status(201).json({
       success: true,
@@ -175,7 +265,7 @@ const revokeTemporaryAccess = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = req.user.role?.toLowerCase(); // Case-insensitive role check
 
     if (userRole !== 'admin' && userRole !== 'manager') {
       return res.status(403).json({
@@ -201,10 +291,39 @@ const revokeTemporaryAccess = async (req, res) => {
       });
     }
 
+    // Get the grant details before revoking
+    const [grantDetails] = await pool.query(
+      'SELECT user_id, resource_id FROM temporary_access WHERE id = ?',
+      [id]
+    );
+
     await pool.query(
-      'UPDATE temporary_access SET revoked_at = NOW(), revoked_by = ? WHERE id = ?',
+      'UPDATE temporary_access SET revoked_at = UTC_TIMESTAMP(), revoked_by = ? WHERE id = ?',
       [userId, id]
     );
+
+    // Remove from user_regions table (only if no permanent access exists)
+    if (grantDetails.length > 0) {
+      const grantUserId = grantDetails[0].user_id;
+      const grantResourceId = grantDetails[0].resource_id;
+
+      // Check if there's any other active temporary access for this region
+      const [otherTemp] = await pool.query(
+        `SELECT id FROM temporary_access
+         WHERE user_id = ? AND resource_id = ? AND id != ?
+         AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()`,
+        [grantUserId, grantResourceId, id]
+      );
+
+      // If no other temporary access, remove from user_regions
+      if (otherTemp.length === 0) {
+        await pool.query(
+          'DELETE FROM user_regions WHERE user_id = ? AND region_id = ? AND assigned_by = ?',
+          [grantUserId, grantResourceId, userId]
+        );
+        console.log(`✅ Removed temporary region access from user_regions`);
+      }
+    }
 
     res.json({ success: true, message: 'Temporary access revoked successfully' });
   } catch (error) {
@@ -213,8 +332,55 @@ const revokeTemporaryAccess = async (req, res) => {
   }
 };
 
+/**
+ * @route   GET /api/temporary-access/my-access
+ * @desc    Get current user's active temporary access
+ * @access  Private
+ */
+const getMyTemporaryAccess = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const query = `
+      SELECT ta.*,
+             r.name as region_name,
+             r.code as region_code,
+             r.type as region_type,
+             granter.username as granted_by_username,
+             granter.full_name as granted_by_name,
+             TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), ta.expires_at) as seconds_remaining
+      FROM temporary_access ta
+      INNER JOIN regions r ON ta.resource_id = r.id
+      INNER JOIN users granter ON ta.granted_by = granter.id
+      WHERE ta.user_id = ?
+        AND ta.resource_type = 'region'
+        AND ta.revoked_at IS NULL
+        AND ta.expires_at > UTC_TIMESTAMP()
+      ORDER BY ta.expires_at ASC
+    `;
+
+    const [access] = await pool.query(query, [userId]);
+
+    // Add time remaining calculation
+    const accessWithTimeRemaining = access.map(grant => ({
+      ...grant,
+      time_remaining: calculateTimeRemaining(grant.seconds_remaining)
+    }));
+
+    res.json({
+      success: true,
+      access: accessWithTimeRemaining,
+      count: accessWithTimeRemaining.length
+    });
+  } catch (error) {
+    console.error('Get my temporary access error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get temporary access' });
+  }
+};
+
 module.exports = {
   getAllTemporaryAccess,
   grantTemporaryAccess,
-  revokeTemporaryAccess
+  revokeTemporaryAccess,
+  getMyTemporaryAccess
 };

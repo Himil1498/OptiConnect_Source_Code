@@ -40,9 +40,9 @@ export const mockApiService = {
 
     const token = generateMockToken(user.id);
 
-    // Store mock token in localStorage
-    localStorage.setItem('opti_connect_token', token);
-    localStorage.setItem('opti_connect_user', JSON.stringify(user));
+    // Store mock token in sessionStorage
+    sessionStorage.setItem('opti_connect_token', token);
+    sessionStorage.setItem('opti_connect_user', JSON.stringify(user));
 
     return {
       success: true,
@@ -101,12 +101,12 @@ export const mockApiService = {
   getCurrentUser: async () => {
     await delay(300);
 
-    const token = localStorage.getItem('opti_connect_token');
+    const token = sessionStorage.getItem('opti_connect_token');
     if (!token) {
       throw new Error('Not authenticated');
     }
 
-    const userStr = localStorage.getItem('opti_connect_user');
+    const userStr = sessionStorage.getItem('opti_connect_user');
     if (!userStr) {
       throw new Error('User not found');
     }
@@ -259,8 +259,8 @@ export const mockApiService = {
    */
   logout: async () => {
     await delay(200);
-    localStorage.removeItem('opti_connect_token');
-    localStorage.removeItem('opti_connect_user');
+    sessionStorage.removeItem('opti_connect_token');
+    sessionStorage.removeItem('opti_connect_user');
 
     return {
       success: true,

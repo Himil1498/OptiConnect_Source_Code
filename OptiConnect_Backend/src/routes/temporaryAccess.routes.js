@@ -4,11 +4,16 @@ const { authenticate } = require('../middleware/auth');
 const {
   getAllTemporaryAccess,
   grantTemporaryAccess,
-  revokeTemporaryAccess
+  revokeTemporaryAccess,
+  getMyTemporaryAccess
 } = require('../controllers/temporaryAccessController');
 
 router.use(authenticate);
 
+// User endpoint (must be before /:id routes)
+router.get('/my-access', getMyTemporaryAccess);
+
+// Admin/Manager endpoints
 router.get('/', getAllTemporaryAccess);
 router.post('/', grantTemporaryAccess);
 router.delete('/:id', revokeTemporaryAccess);

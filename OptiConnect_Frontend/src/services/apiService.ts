@@ -2,16 +2,13 @@ import axios from 'axios';
 import type { User } from '../types/auth.types';
 import type { TelecomTower, NetworkCoverage } from '../store/slices/dataSlice';
 import type { AnalyticsMetric, PerformanceData } from '../store/slices/analyticsSlice';
-import mockApiService from './mockApiService';
 
-// API Configuration
-const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
-const USE_MOCK_API = process.env.REACT_APP_USE_MOCK_API === 'true';
+// API Configuration - ALWAYS USE BACKEND
 const BACKEND_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const API_CONFIG = {
   development: {
-    baseURL: USE_BACKEND ? BACKEND_API_URL : 'http://localhost:3001/api',
+    baseURL: BACKEND_API_URL,
     timeout: 10000,
   },
   production: {
@@ -27,21 +24,10 @@ const config = process.env.NODE_ENV === 'production'
 
 // Log API configuration (for debugging)
 console.log('🔧 API Configuration:', {
-  USE_BACKEND,
-  USE_MOCK_API,
   baseURL: config.baseURL,
-  environment: process.env.NODE_ENV
+  environment: process.env.NODE_ENV,
+  mode: 'BACKEND ONLY'
 });
-
-// Show alert if using mock mode
-if (USE_MOCK_API) {
-  console.log('📱 MOCK MODE ENABLED - Using fake data for offline development');
-  console.log('✅ You can login with any of these mock credentials:');
-  console.log('   - admin@opticonnect.com / Admin@123');
-  console.log('   - john.manager@opticonnect.com / Manager@123');
-  console.log('   - sarah.tech@opticonnect.com / Tech@123');
-  console.log('   - mike.user@opticonnect.com / User@123');
-}
 
 // Create axios instance
 const apiClient = axios.create({
@@ -56,7 +42,7 @@ const apiClient = axios.create({
 // Request interceptor for authentication
 apiClient.interceptors.request.use(
   (config: any) => {
-    const token = localStorage.getItem('opti_connect_token');
+    const token = sessionStorage.getItem('opti_connect_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -202,57 +188,8 @@ const MOCK_TOWERS: TelecomTower[] = [
 class ApiService {
   // Authentication
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    // Check if mock mode is enabled first
-    if (USE_MOCK_API) {
-      console.log('🔄 Using MOCK API (offline mode)');
-      const response = await mockApiService.login(credentials.email, credentials.password);
-      return {
-        user: response.user,
-        token: response.token,
-        refreshToken: response.token,
-        expiresIn: 3600
-      };
-    }
-
-    // Use backend if enabled, otherwise use mock data
-    if (!USE_BACKEND) {
-      console.log('🔄 Using mock authentication (backend disabled)');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      return {
-        user: {
-          id: 'user_1',
-          email: credentials.email,
-          name: 'Demo User',
-          role: 'Admin',
-          company: credentials.company || 'Demo Company',
-          permissions: ['all'],
-          lastLogin: new Date().toISOString(),
-          username: credentials.email.split('@')[0],
-          password: '********',
-          gender: 'Other',
-          phoneNumber: '+91-0000000000',
-          address: {
-            street: 'Demo Street',
-            city: 'Demo City',
-            state: 'Maharashtra',
-            pincode: '000000'
-          },
-          officeLocation: 'Demo Office',
-          assignedUnder: [],
-          assignedRegions: ['Maharashtra'],
-          groups: [],
-          status: 'Active',
-          loginHistory: [],
-        },
-        token: `mock_token_${Date.now()}`,
-        refreshToken: `mock_refresh_${Date.now()}`,
-        expiresIn: 3600,
-      };
-    }
-
-    // Real backend authentication
-    console.log('🔄 Attempting real backend authentication...');
+    // Always use real backend authentication
+    console.log('🔄 Attempting backend authentication...');
     try {
       const response = await apiClient.post<BackendLoginResponse>('/auth/login', {
         email: credentials.email,
@@ -308,7 +245,7 @@ class ApiService {
         },
         token: backendData.token,
         refreshToken: backendData.token, // Backend uses same token for now
-        expiresIn: 900, // 15 minutes as per backend config
+        expiresIn: 7200, // 2 hours as per backend config
       };
     } catch (error: any) {
       console.error('❌ Backend login failed:', error.response?.data || error.message);
@@ -325,19 +262,19 @@ class ApiService {
   }
 
   async refreshToken(token: string): Promise<string> {
-    if (process.env.NODE_ENV === 'development') {
-      return `refreshed_mock_token_${Date.now()}`;
+    // ALWAYS use backend - never return mock tokens
+    try {
+      const response = await apiClient.post<ApiResponse<{ token: string }>>('/auth/refresh', { token });
+      return response.data.data.token;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      // Return the same token if refresh fails (non-critical)
+      return token;
     }
-
-    const response = await apiClient.post<ApiResponse<{ token: string }>>('/auth/refresh', { token });
-    return response.data.data.token;
   }
 
   async verifyToken(token: string): Promise<boolean> {
-    if (process.env.NODE_ENV === 'development') {
-      return true;
-    }
-
+    // ALWAYS use backend - never bypass verification
     try {
       await apiClient.get('/auth/verify', {
         headers: { Authorization: `Bearer ${token}` }
@@ -467,16 +404,11 @@ class ApiService {
 
   // User Management APIs
   async getUsers(filters?: any): Promise<User[]> {
-    // Use mock API if enabled
-    if (USE_MOCK_API) {
-      const response = await mockApiService.getAllUsers();
-      return response.users;
-    }
-
-    if (process.env.NODE_ENV === 'development') {
+    // Always use backend - no mock mode
+    if (process.env.NODE_ENV === 'development' && false) {  // Disabled mock mode
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Mock users data
+      // Mock users data (DISABLED)
       return [
         {
           id: 'USER001',

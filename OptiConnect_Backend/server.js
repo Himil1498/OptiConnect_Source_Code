@@ -34,13 +34,17 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-// Rate limiting
+// Rate limiting - Industry standard (more permissive for development)
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // Increased from 100 to 1000
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for session management endpoints
+    return req.path.includes('/auth/') || req.path.includes('/temporary-access/my-access');
+  }
 });
 app.use("/api/", limiter);
 

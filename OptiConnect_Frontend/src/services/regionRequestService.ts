@@ -1,5 +1,6 @@
 // Region Access Request Service
 
+import axios from 'axios';
 import type {
   RegionAccessRequest,
   RegionRequestStatus,
@@ -9,66 +10,125 @@ import type {
 import type { User } from '../types/auth.types';
 import { logAuditEvent } from './auditService';
 
+const BACKEND_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 const STORAGE_KEY = 'gis_region_requests';
+
+// Create axios instance for region request APIs
+const apiClient = axios.create({
+  baseURL: BACKEND_API_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Add authorization header interceptor
+apiClient.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem('opti_connect_token');
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 /**
  * Create a new region access request
  */
-export const createRegionRequest = (
+export const createRegionRequest = async (
   user: User,
   requestedRegions: string[],
   reason: string
-): RegionAccessRequest => {
-  const request: RegionAccessRequest = {
-    id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    userId: user.id,
-    userName: user.name,
-    userEmail: user.email,
-    userRole: user.role,
-    requestedRegions,
-    reason,
-    status: 'pending',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
+): Promise<RegionAccessRequest> => {
+  try {
+    // Backend expects single region per request, so we'll create multiple if needed
+    // For now, create just for the first region
+    const region = requestedRegions[0];
 
-  // Get existing requests
-  const requests = getRegionRequests();
+    const response = await apiClient.post<{
+      success: boolean;
+      message?: string;
+      request: any;
+    }>('/region-requests', {
+      region_name: region,
+      request_type: 'access',
+      reason
+    });
 
-  // Add new request
-  requests.unshift(request);
+    const data = response.data;
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to create region request');
+    }
 
-  // Save to localStorage
-  saveRequests(requests);
+    const backendRequest = data.request;
 
-  // Log audit event
-  logAuditEvent(user, 'REGION_ACCESS_DENIED', `Requested access to ${requestedRegions.join(', ')}`, {
-    severity: 'info',
-    details: { requestedRegions, reason, requestId: request.id },
-    success: true
-  });
+    const request: RegionAccessRequest = {
+      id: backendRequest.id.toString(),
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      userRole: user.role,
+      requestedRegions,
+      reason: backendRequest.reason,
+      status: backendRequest.status,
+      createdAt: new Date(backendRequest.created_at || Date.now()),
+      updatedAt: new Date(backendRequest.updated_at || Date.now())
+    };
 
-  return request;
+    // Log audit event
+    logAuditEvent(user, 'REGION_ACCESS_DENIED', `Requested access to ${requestedRegions.join(', ')}`, {
+      severity: 'info',
+      details: { requestedRegions, reason, requestId: request.id },
+      success: true
+    });
+
+    return request;
+  } catch (error: any) {
+    console.error('Error creating region request:', error);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to create region request');
+  }
 };
 
 /**
  * Get all region access requests
  */
-export const getRegionRequests = (): RegionAccessRequest[] => {
+export const getRegionRequests = async (status?: string): Promise<RegionAccessRequest[]> => {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return [];
+    const params: any = {};
+    if (status) params.status = status;
 
-    const requests = JSON.parse(data);
-    // Convert date strings back to Date objects
-    return requests.map((req: any) => ({
-      ...req,
-      createdAt: new Date(req.createdAt),
-      updatedAt: new Date(req.updatedAt),
-      reviewedAt: req.reviewedAt ? new Date(req.reviewedAt) : undefined
+    const response = await apiClient.get<{
+      success: boolean;
+      message?: string;
+      requests: any[];
+    }>('/region-requests', { params });
+
+    const data = response.data;
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to fetch region requests');
+    }
+
+    console.log('📥 Fetched region requests from backend:', data.requests);
+
+    const requests = data.requests.map((req: any) => ({
+      id: req.id.toString(),
+      userId: `OCGID${String(req.user_id).padStart(3, '0')}`,
+      userName: req.full_name || req.username || '',
+      userEmail: req.email || '',
+      userRole: req.role || 'User',
+      requestedRegions: [req.region_name],
+      reason: req.reason || '',
+      status: req.status as RegionRequestStatus,
+      createdAt: new Date(req.requested_at || req.created_at),
+      updatedAt: new Date(req.updated_at || req.created_at),
+      reviewedAt: req.reviewed_at ? new Date(req.reviewed_at) : undefined,
+      reviewedBy: req.reviewed_by ? `OCGID${String(req.reviewed_by).padStart(3, '0')}` : undefined,
+      reviewedByName: req.reviewed_by_name || undefined,
+      reviewNotes: req.review_notes || undefined
     }));
-  } catch (error) {
-    console.error('Failed to load region requests:', error);
+
+    return requests;
+  } catch (error: any) {
+    console.error('Error fetching region requests from backend:', error);
     return [];
   }
 };
@@ -76,24 +136,21 @@ export const getRegionRequests = (): RegionAccessRequest[] => {
 /**
  * Get region requests for a specific user
  */
-export const getUserRegionRequests = (userId: string): RegionAccessRequest[] => {
-  return getRegionRequests().filter(req => req.userId === userId);
+export const getUserRegionRequests = async (userId: string): Promise<RegionAccessRequest[]> => {
+  const requests = await getRegionRequests();
+  return requests.filter(req => req.userId === userId);
 };
 
 /**
  * Get filtered region requests
  */
-export const getFilteredRegionRequests = (
+export const getFilteredRegionRequests = async (
   filter: RegionAccessRequestFilter
-): RegionAccessRequest[] => {
-  const requests = getRegionRequests();
+): Promise<RegionAccessRequest[]> => {
+  const requests = await getRegionRequests(filter.status);
 
   return requests.filter(req => {
     if (filter.userId && req.userId !== filter.userId) {
-      return false;
-    }
-
-    if (filter.status && req.status !== filter.status) {
       return false;
     }
 
@@ -108,93 +165,105 @@ export const getFilteredRegionRequests = (
 /**
  * Approve a region access request
  */
-export const approveRegionRequest = (
+export const approveRegionRequest = async (
   requestId: string,
   reviewedBy: User,
   reviewNotes?: string
-): RegionAccessRequest | null => {
-  const requests = getRegionRequests();
-  const request = requests.find(req => req.id === requestId);
+): Promise<RegionAccessRequest | null> => {
+  try {
+    const response = await apiClient.patch<{
+      success: boolean;
+      message?: string;
+      request?: any;
+    }>(`/region-requests/${requestId}/approve`, {
+      review_notes: reviewNotes
+    });
 
-  if (!request) {
-    return null;
+    const data = response.data;
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to approve region request');
+    }
+
+    // Fetch updated request
+    const requests = await getRegionRequests();
+    const request = requests.find(req => req.id === requestId);
+
+    if (request) {
+      // Log audit event
+      logAuditEvent(reviewedBy, 'REGION_ASSIGNED', `Approved region request for ${request.userName}`, {
+        severity: 'info',
+        details: {
+          requestId,
+          requestedRegions: request.requestedRegions,
+          requestedBy: request.userName,
+          reviewNotes
+        },
+        success: true
+      });
+    }
+
+    return request || null;
+  } catch (error: any) {
+    console.error('Error approving region request:', error);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to approve region request');
   }
-
-  // Update request status
-  request.status = 'approved';
-  request.reviewedBy = reviewedBy.id;
-  request.reviewedByName = reviewedBy.name;
-  request.reviewedAt = new Date();
-  request.updatedAt = new Date();
-  request.reviewNotes = reviewNotes;
-
-  // Save updated requests
-  saveRequests(requests);
-
-  // Log audit event
-  logAuditEvent(reviewedBy, 'REGION_ASSIGNED', `Approved region request for ${request.userName}`, {
-    severity: 'info',
-    details: {
-      requestId,
-      requestedRegions: request.requestedRegions,
-      requestedBy: request.userName,
-      reviewNotes
-    },
-    success: true
-  });
-
-  return request;
 };
 
 /**
  * Reject a region access request
  */
-export const rejectRegionRequest = (
+export const rejectRegionRequest = async (
   requestId: string,
   reviewedBy: User,
   reviewNotes?: string
-): RegionAccessRequest | null => {
-  const requests = getRegionRequests();
-  const request = requests.find(req => req.id === requestId);
+): Promise<RegionAccessRequest | null> => {
+  try {
+    const response = await apiClient.patch<{
+      success: boolean;
+      message?: string;
+      request?: any;
+    }>(`/region-requests/${requestId}/reject`, {
+      review_notes: reviewNotes
+    });
 
-  if (!request) {
-    return null;
+    const data = response.data;
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to reject region request');
+    }
+
+    // Fetch updated request
+    const requests = await getRegionRequests();
+    const request = requests.find(req => req.id === requestId);
+
+    if (request) {
+      // Log audit event
+      logAuditEvent(reviewedBy, 'REGION_REVOKED', `Rejected region request for ${request.userName}`, {
+        severity: 'warning',
+        details: {
+          requestId,
+          requestedRegions: request.requestedRegions,
+          requestedBy: request.userName,
+          reviewNotes
+        },
+        success: true
+      });
+    }
+
+    return request || null;
+  } catch (error: any) {
+    console.error('Error rejecting region request:', error);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to reject region request');
   }
-
-  // Update request status
-  request.status = 'rejected';
-  request.reviewedBy = reviewedBy.id;
-  request.reviewedByName = reviewedBy.name;
-  request.reviewedAt = new Date();
-  request.updatedAt = new Date();
-  request.reviewNotes = reviewNotes;
-
-  // Save updated requests
-  saveRequests(requests);
-
-  // Log audit event
-  logAuditEvent(reviewedBy, 'REGION_REVOKED', `Rejected region request for ${request.userName}`, {
-    severity: 'warning',
-    details: {
-      requestId,
-      requestedRegions: request.requestedRegions,
-      requestedBy: request.userName,
-      reviewNotes
-    },
-    success: true
-  });
-
-  return request;
 };
 
 /**
  * Cancel a region access request (by the requester)
  */
-export const cancelRegionRequest = (
+export const cancelRegionRequest = async (
   requestId: string,
   user: User
-): RegionAccessRequest | null => {
-  const requests = getRegionRequests();
+): Promise<RegionAccessRequest | null> => {
+  const requests = await getRegionRequests();
   const request = requests.find(req => req.id === requestId);
 
   if (!request || request.userId !== user.id) {
@@ -229,10 +298,10 @@ export const cancelRegionRequest = (
 /**
  * Get region request statistics
  */
-export const getRegionRequestStats = (
+export const getRegionRequestStats = async (
   filter?: RegionAccessRequestFilter
-): RegionRequestStats => {
-  const requests = filter ? getFilteredRegionRequests(filter) : getRegionRequests();
+): Promise<RegionRequestStats> => {
+  const requests = filter ? await getFilteredRegionRequests(filter) : await getRegionRequests();
 
   const requestsByUser: Record<string, number> = {};
   const requestsByRegion: Record<string, number> = {};
@@ -270,18 +339,19 @@ export const getRegionRequestStats = (
 /**
  * Get pending requests count for a user
  */
-export const getPendingRequestsCount = (userId: string): number => {
-  return getFilteredRegionRequests({ userId, status: 'pending' }).length;
+export const getPendingRequestsCount = async (userId: string): Promise<number> => {
+  const requests = await getFilteredRegionRequests({ userId, status: 'pending' });
+  return requests.length;
 };
 
 /**
  * Check if user has pending request for a region
  */
-export const hasPendingRequestForRegion = (
+export const hasPendingRequestForRegion = async (
   userId: string,
   region: string
-): boolean => {
-  const pendingRequests = getFilteredRegionRequests({ userId, status: 'pending' });
+): Promise<boolean> => {
+  const pendingRequests = await getFilteredRegionRequests({ userId, status: 'pending' });
   return pendingRequests.some(req => req.requestedRegions.includes(region));
 };
 
@@ -299,8 +369,8 @@ const saveRequests = (requests: RegionAccessRequest[]): void => {
 /**
  * Delete a region request
  */
-export const deleteRegionRequest = (requestId: string, user: User): boolean => {
-  const requests = getRegionRequests();
+export const deleteRegionRequest = async (requestId: string, user: User): Promise<boolean> => {
+  const requests = await getRegionRequests();
   const index = requests.findIndex(req => req.id === requestId);
 
   if (index === -1) {

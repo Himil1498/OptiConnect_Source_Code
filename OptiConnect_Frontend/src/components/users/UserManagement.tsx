@@ -626,6 +626,14 @@ const UserManagement: React.FC = () => {
                 <th className="px-4 py-4 text-left text-xs font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">
                   <div className="flex items-center gap-2">
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Temporary Access
+                  </div>
+                </th>
+                <th className="px-4 py-4 text-left text-xs font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                     </svg>
                     Actions
@@ -711,6 +719,38 @@ const UserManagement: React.FC = () => {
                   <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
                     {user.assignedRegions.slice(0, 2).join(', ')}
                     {user.assignedRegions.length > 2 && ` +${user.assignedRegions.length - 2} more`}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {user.temporaryAccess && user.temporaryAccess.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {user.temporaryAccess.slice(0, 2).map((ta) => (
+                          <div key={ta.id} className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                              {ta.region}
+                            </span>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              ta.timeRemaining.days <= 1
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                : ta.timeRemaining.days <= 7
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                                : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                            }`}>
+                              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              {ta.timeRemaining.display}
+                            </span>
+                          </div>
+                        ))}
+                        {user.temporaryAccess.length > 2 && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            +{user.temporaryAccess.length - 2} more
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400 dark:text-gray-500">None</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <div className="flex gap-2">

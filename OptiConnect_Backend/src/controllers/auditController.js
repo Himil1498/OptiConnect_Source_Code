@@ -11,28 +11,33 @@ const getAuditLogs = async (req, res) => {
     const userRole = req.user.role;
     const { limit = 50, offset = 0, action_type, user_id } = req.query;
 
-    let query = 'SELECT * FROM audit_logs WHERE ';
+    let query = `
+      SELECT al.*,
+             u.username,
+             u.full_name
+      FROM audit_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE 1=1
+    `;
     const params = [];
 
     // Admin can see all logs, others see only their own
     if (userRole === 'admin') {
       if (user_id) {
-        query += 'user_id = ?';
+        query += ' AND al.user_id = ?';
         params.push(user_id);
-      } else {
-        query += '1=1'; // All logs
       }
     } else {
-      query += 'user_id = ?';
+      query += ' AND al.user_id = ?';
       params.push(userId);
     }
 
     if (action_type) {
-      query += ' AND action_type = ?';
+      query += ' AND al.action = ?';
       params.push(action_type);
     }
 
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY al.created_at DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), parseInt(offset));
 
     const [logs] = await pool.query(query, params);
@@ -113,8 +118,112 @@ const getUserActivity = async (req, res) => {
   }
 };
 
+/**
+ * @route   POST /api/audit/logs
+ * @desc    Create audit log entry
+ * @access  Private (System/Admin)
+ */
+const createAuditLog = async (req, res) => {
+  try {
+    const { action, resource_type, resource_id, details, ip_address, user_agent } = req.body;
+    const userId = req.user ? req.user.id : null;
+
+    if (!action) {
+      return res.status(400).json({
+        success: false,
+        error: 'Action is required'
+      });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip_address, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        action,
+        resource_type || null,
+        resource_id || null,
+        details ? JSON.stringify(details) : null,
+        ip_address || req.ip,
+        user_agent || req.get('User-Agent')
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      log: {
+        id: result.insertId,
+        user_id: userId,
+        action,
+        resource_type,
+        resource_id,
+        created_at: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Create audit log error:', error);
+    res.status(500).json({ success: false, error: 'Failed to create audit log' });
+  }
+};
+
+/**
+ * @route   DELETE /api/audit/logs/:id
+ * @desc    Delete audit log (Admin only)
+ * @access  Private (Admin)
+ */
+const deleteAuditLog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userRole = req.user.role;
+
+    if (userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only admin can delete audit logs'
+      });
+    }
+
+    const [result] = await pool.query('DELETE FROM audit_logs WHERE id = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: 'Audit log not found' });
+    }
+
+    res.json({ success: true, message: 'Audit log deleted successfully' });
+  } catch (error) {
+    console.error('Delete audit log error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete audit log' });
+  }
+};
+
+/**
+ * Helper function to log audit events (can be called from other controllers)
+ */
+const logAudit = async (userId, action, resourceType, resourceId, details, req) => {
+  try {
+    await pool.query(
+      `INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip_address, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        action,
+        resourceType || null,
+        resourceId || null,
+        details ? JSON.stringify(details) : null,
+        req?.ip || null,
+        req?.get('User-Agent') || null
+      ]
+    );
+  } catch (error) {
+    console.error('Log audit error:', error);
+  }
+};
+
 module.exports = {
   getAuditLogs,
   getAuditLogById,
-  getUserActivity
+  getUserActivity,
+  createAuditLog,
+  deleteAuditLog,
+  logAudit
 };

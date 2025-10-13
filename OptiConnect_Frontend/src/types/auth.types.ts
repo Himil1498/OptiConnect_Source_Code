@@ -1,5 +1,25 @@
 import type { UserRole, Permission, TelecomCompany } from './common.types';
 
+// Temporary Access Info
+export interface TemporaryAccessInfo {
+  id: string;
+  region: string;
+  expiresAt: Date;
+  grantedAt: Date;
+  grantedByName: string;
+  reason: string;
+  secondsRemaining: number;
+  timeRemaining: {
+    expired: boolean;
+    display: string;
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+    total_seconds: number;
+  };
+}
+
 // Enhanced User Types for Phase 2
 export interface User {
   id: string; // Auto-generated (USER001, USER002...)
@@ -19,6 +39,7 @@ export interface User {
   assignedUnder: string[]; // Multiple managers/users
   role: 'Admin' | 'Manager' | 'Technician' | 'User';
   assignedRegions: string[]; // Indian states/UTs from india.json
+  temporaryAccess?: TemporaryAccessInfo[]; // Active temporary access grants
   groups: string[]; // User group IDs
   directPermissions?: string[]; // Direct permissions assigned to user (not from groups)
   status: 'Active' | 'Inactive';

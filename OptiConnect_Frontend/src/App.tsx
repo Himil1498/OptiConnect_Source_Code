@@ -17,6 +17,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import LoginPage from './pages/LoginPage';
 import EmailVerificationPage from './pages/EmailVerificationPage';
 import ResendVerificationPage from './pages/ResendVerificationPage';
+import RegionRequestForm from './components/user/RegionRequestForm';
 
 // Context Providers
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -162,6 +163,16 @@ const App: React.FC = () => {
                         <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
                           <main className="pt-16">
                             <AnalyticsPage />
+                          </main>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/request-region"
+                      element={
+                        <ProtectedRoute allowedRoles={["Admin", "Manager", "Technician", "User"]}>
+                          <main className="pt-16">
+                            <RegionRequestForm />
                           </main>
                         </ProtectedRoute>
                       }

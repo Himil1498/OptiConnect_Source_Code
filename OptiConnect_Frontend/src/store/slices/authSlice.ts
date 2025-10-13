@@ -32,9 +32,12 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.error = null;
-      // Keep localStorage for backward compatibility and immediate access
-      localStorage.setItem('opti_connect_token', action.payload.token);
-      localStorage.setItem('opti_connect_user', JSON.stringify(action.payload.user));
+      // Use ONLY sessionStorage - clears on browser close
+      sessionStorage.setItem('opti_connect_token', action.payload.token);
+      sessionStorage.setItem('opti_connect_user', JSON.stringify(action.payload.user));
+      // Remove old localStorage data
+      localStorage.removeItem('opti_connect_token');
+      localStorage.removeItem('opti_connect_user');
       console.log('✅ User logged in:', action.payload.user.username);
     },
     loginFailure: (state, action: PayloadAction<string>) => {
@@ -43,7 +46,9 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.error = action.payload;
-      // Clear localStorage
+      // Clear both storages
+      sessionStorage.removeItem('opti_connect_token');
+      sessionStorage.removeItem('opti_connect_user');
       localStorage.removeItem('opti_connect_token');
       localStorage.removeItem('opti_connect_user');
     },
@@ -52,7 +57,9 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.error = null;
-      // Clear localStorage
+      // Clear both storages
+      sessionStorage.removeItem('opti_connect_token');
+      sessionStorage.removeItem('opti_connect_user');
       localStorage.removeItem('opti_connect_token');
       localStorage.removeItem('opti_connect_user');
       console.log('✅ User logged out');
@@ -63,8 +70,8 @@ const authSlice = createSlice({
     updateUser: (state, action: PayloadAction<Partial<User>>) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
-        // Sync with localStorage
-        localStorage.setItem('opti_connect_user', JSON.stringify(state.user));
+        // Sync with sessionStorage
+        sessionStorage.setItem('opti_connect_user', JSON.stringify(state.user));
         console.log('✅ User updated:', state.user.username);
       }
     },

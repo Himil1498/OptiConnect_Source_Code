@@ -20,7 +20,7 @@ const apiClient = axios.create({
 
 // Add authorization header interceptor
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('opti_connect_token');
+  const token = sessionStorage.getItem('opti_connect_token');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -146,6 +146,26 @@ function transformBackendUser(backendUser: BackendUser): User {
     }
   }
 
+  // Parse temporary access if available
+  const temporaryAccess = (backendUser as any).temporaryAccess?.map((ta: any) => ({
+    id: ta.id.toString(),
+    region: ta.region,
+    expiresAt: new Date(ta.expiresAt),
+    grantedAt: new Date(ta.grantedAt),
+    grantedByName: ta.grantedByName || '',
+    reason: ta.reason || '',
+    secondsRemaining: ta.secondsRemaining || 0,
+    timeRemaining: ta.timeRemaining || {
+      expired: true,
+      display: 'Expired',
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      total_seconds: 0
+    }
+  })) || [];
+
   return {
     id: `OCGID${String(backendUser.id).padStart(3, '0')}`, // Format numeric ID as OCGID001
     username: backendUser.username,
@@ -165,6 +185,7 @@ function transformBackendUser(backendUser: BackendUser): User {
     assignedUnder: [], // Not directly mapped, would need additional API
     role: mapBackendRole(backendUser.role),
     assignedRegions: regions,
+    temporaryAccess,
     groups: [],
     status: backendUser.is_active ? 'Active' : 'Inactive',
     loginHistory: [],

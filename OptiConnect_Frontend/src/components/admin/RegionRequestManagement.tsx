@@ -33,15 +33,34 @@ const RegionRequestManagement: React.FC = () => {
 
   const isAdmin = user?.role === 'Admin';
 
+  const [stats, setStats] = useState({
+    totalRequests: 0,
+    pendingRequests: 0,
+    approvedRequests: 0,
+    rejectedRequests: 0,
+    requestsByUser: {},
+    requestsByRegion: {}
+  });
+
   useEffect(() => {
     loadRequests();
   }, [filterStatus]);
 
-  const loadRequests = () => {
+  useEffect(() => {
+    const loadStats = async () => {
+      const statsData = await getRegionRequestStats();
+      setStats(statsData);
+    };
+    loadStats();
+  }, [requests]);
+
+  const loadRequests = async () => {
     if (filterStatus === 'all') {
-      setRequests(getRegionRequests());
+      const reqs = await getRegionRequests();
+      setRequests(reqs);
     } else {
-      setRequests(getFilteredRegionRequests({ status: filterStatus }));
+      const reqs = await getFilteredRegionRequests({ status: filterStatus });
+      setRequests(reqs);
     }
   };
 
@@ -59,12 +78,12 @@ const RegionRequestManagement: React.FC = () => {
     setShowReviewDialog(true);
   };
 
-  const confirmReview = () => {
+  const confirmReview = async () => {
     if (!user || !selectedRequest || !reviewAction) return;
 
     try {
       if (reviewAction === 'approve') {
-        const result = approveRegionRequest(selectedRequest.id, user, reviewNotes);
+        const result = await approveRegionRequest(selectedRequest.id, user, reviewNotes);
         if (result) {
           showNotification(
             'success',
@@ -73,7 +92,7 @@ const RegionRequestManagement: React.FC = () => {
           );
         }
       } else {
-        const result = rejectRegionRequest(selectedRequest.id, user, reviewNotes);
+        const result = await rejectRegionRequest(selectedRequest.id, user, reviewNotes);
         if (result) {
           showNotification(
             'success',
@@ -83,7 +102,7 @@ const RegionRequestManagement: React.FC = () => {
         }
       }
 
-      loadRequests();
+      await loadRequests();
       setShowReviewDialog(false);
       setSelectedRequest(null);
       setReviewAction(null);
@@ -94,14 +113,14 @@ const RegionRequestManagement: React.FC = () => {
     }
   };
 
-  const handleDelete = (request: RegionAccessRequest) => {
+  const handleDelete = async (request: RegionAccessRequest) => {
     if (!user) return;
 
     if (window.confirm(`Are you sure you want to delete this request from ${request.userName}?`)) {
-      const result = deleteRegionRequest(request.id, user);
+      const result = await deleteRegionRequest(request.id, user);
       if (result) {
         showNotification('success', 'Request Deleted', 'The request has been deleted successfully.');
-        loadRequests();
+        await loadRequests();
       } else {
         showNotification('error', 'Delete Failed', 'Failed to delete the request.');
       }
@@ -144,8 +163,6 @@ const RegionRequestManagement: React.FC = () => {
       </div>
     );
   }
-
-  const stats = getRegionRequestStats();
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">

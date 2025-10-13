@@ -9,10 +9,9 @@ import type {
 import type { User } from "../types/auth.types";
 import { logAuditEvent } from "./auditService";
 
-const STORAGE_KEY = "gis_temporary_access";
 const BACKEND_API_URL =
   process.env.REACT_APP_API_URL || "http://localhost:5000/api";
-const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === "true";
+const STORAGE_KEY = "gis_temporary_access"; // Keep for localStorage functions
 
 // Create axios instance for temporary access APIs
 const apiClient = axios.create({
@@ -25,7 +24,7 @@ const apiClient = axios.create({
 
 // Add authorization header interceptor
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("opti_connect_token");
+  const token = sessionStorage.getItem("opti_connect_token");
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -42,97 +41,71 @@ export const grantTemporaryAccess = async (
   reason: string,
   grantedBy: User
 ): Promise<TemporaryRegionAccess> => {
-  if (USE_BACKEND) {
-    try {
-      // Extract numeric ID
-      const numericUserId =
-        targetUser.id.replace("OCGID", "").replace(/^0+/, "") || "0";
+  try {
+    // Extract numeric ID
+    const numericUserId =
+      targetUser.id.replace("OCGID", "").replace(/^0+/, "") || "0";
 
-      const response = await apiClient.post<{
-        success: boolean;
-        message?: string;
-        grant: any;
-      }>("/temporary-access", {
-        user_id: parseInt(numericUserId),
-        region_name: region,
-        expires_at: expiresAt.toISOString(),
-        reason
-      });
+    const response = await apiClient.post<{
+      success: boolean;
+      message?: string;
+      grant: any;
+    }>("/temporary-access", {
+      user_id: parseInt(numericUserId),
+      region_name: region,
+      expires_at: expiresAt.toISOString(),
+      reason
+    });
 
-      const data = response.data as { success: boolean; message?: string; grant: any };
-      if (!data.success) {
-        throw new Error(
-          data.message || "Failed to grant temporary access"
-        );
-      }
-
-      const backendGrant = data.grant;
-
-      // Transform backend response to frontend format
-      const grant: TemporaryRegionAccess = {
-        id: backendGrant.id.toString(),
-        userId: targetUser.id,
-        userName: targetUser.name,
-        userEmail: targetUser.email,
-        region,
-        grantedBy: grantedBy.id,
-        grantedByName: grantedBy.name,
-        grantedAt: new Date(backendGrant.granted_at),
-        expiresAt: new Date(backendGrant.expires_at),
-        reason: backendGrant.reason,
-        isActive: backendGrant.status === "active"
-      };
-
-      return grant;
-    } catch (error: any) {
-      console.error("Error granting temporary access from backend:", error);
-      // Fall back to localStorage
+    const data = response.data as { success: boolean; message?: string; grant: any };
+    if (!data.success) {
+      throw new Error(
+        data.message || "Failed to grant temporary access"
+      );
     }
-  }
 
-  // localStorage implementation
-  const grant: TemporaryRegionAccess = {
-    id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    userId: targetUser.id,
-    userName: targetUser.name,
-    userEmail: targetUser.email,
-    region,
-    grantedBy: grantedBy.id,
-    grantedByName: grantedBy.name,
-    grantedAt: new Date(),
-    expiresAt,
-    reason,
-    isActive: true
-  };
+    const backendGrant = data.grant;
 
-  // Get existing grants
-  const grants = getTemporaryAccessFromLocal();
-
-  // Add new grant
-  grants.unshift(grant);
-
-  // Save to localStorage
-  saveGrants(grants);
-
-  // Log audit event
-  logAuditEvent(
-    grantedBy,
-    "REGION_ASSIGNED",
-    `Granted temporary access to ${region} for ${targetUser.name}`,
-    {
-      severity: "info",
+    // Transform backend response to frontend format
+    const grant: TemporaryRegionAccess = {
+      id: backendGrant.id.toString(),
+      userId: targetUser.id,
+      userName: targetUser.name,
+      userEmail: targetUser.email,
       region,
-      details: {
-        targetUserId: targetUser.id,
-        targetUserName: targetUser.name,
-        expiresAt: expiresAt.toISOString(),
-        reason
-      },
-      success: true
-    }
-  );
+      grantedBy: grantedBy.id,
+      grantedByName: grantedBy.name,
+      grantedAt: new Date(backendGrant.granted_at),
+      expiresAt: new Date(backendGrant.expires_at),
+      reason: backendGrant.reason,
+      isActive: backendGrant.status === "active"
+    };
 
-  return grant;
+    // Log audit event
+    logAuditEvent(
+      grantedBy,
+      "REGION_ASSIGNED",
+      `Granted temporary access to ${region} for ${targetUser.name}`,
+      {
+        severity: "info",
+        region,
+        details: {
+          targetUserId: targetUser.id,
+          targetUserName: targetUser.name,
+          expiresAt: expiresAt.toISOString(),
+          reason
+        },
+        success: true
+      }
+    );
+
+    return grant;
+  } catch (error: any) {
+    console.error("Error granting temporary access from backend:", error);
+    // Extract meaningful error message from backend response
+    const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || "Failed to grant temporary access";
+    throw new Error(errorMessage);
+  }
 };
 
 /**
@@ -163,54 +136,95 @@ const getTemporaryAccessFromLocal = (): TemporaryRegionAccess[] => {
 export const getTemporaryAccess = async (): Promise<
   TemporaryRegionAccess[]
 > => {
-  if (USE_BACKEND) {
-    try {
-      const response = await apiClient.get<{
-        success: boolean;
-        message?: string;
-        access: any[];
-      }>("/temporary-access");
+  try {
+    const response = await apiClient.get<{
+      success: boolean;
+      message?: string;
+      access: any[];
+    }>("/temporary-access");
 
-      const data = response.data as { success: boolean; message?: string; access: any[] };
-      if (!data.success) {
-        throw new Error(
-          data.message || "Failed to fetch temporary access"
-        );
-      }
-
-      const grants = data.access.map((grant: any) => {
-        // Determine if grant is active
-        const isActive = !grant.revoked_at && new Date(grant.expires_at) > new Date();
-
-        return {
-          id: grant.id.toString(),
-          userId: `OCGID${String(grant.user_id).padStart(3, "0")}`,
-          userName: grant.full_name || grant.user_name || "",
-          userEmail: grant.email || grant.user_email || "",
-          region: grant.region_name,
-          grantedBy: `OCGID${String(grant.granted_by).padStart(3, "0")}`,
-          grantedByName: grant.granted_by_username || grant.granted_by_name || "",
-          grantedAt: new Date(grant.granted_at),
-          expiresAt: new Date(grant.expires_at),
-          reason: grant.reason || "",
-          isActive,
-          revokedAt: grant.revoked_at ? new Date(grant.revoked_at) : undefined,
-          revokedBy: grant.revoked_by
-            ? `OCGID${String(grant.revoked_by).padStart(3, "0")}`
-            : undefined,
-          revokedByName: grant.revoked_by_name || undefined,
-          revokedReason: grant.revoked_reason || undefined
-        };
-      });
-
-      return grants;
-    } catch (error: any) {
-      console.error("Error fetching temporary access from backend:", error);
-      // Fall back to localStorage
+    const data = response.data as { success: boolean; message?: string; access: any[] };
+    if (!data.success) {
+      throw new Error(
+        data.message || "Failed to fetch temporary access"
+      );
     }
-  }
 
-  return getTemporaryAccessFromLocal();
+    console.log('📥 Fetched temporary access from backend:', data.access);
+
+    const grants = data.access.map((grant: any) => {
+      // Determine if grant is active
+      const isActive = !grant.revoked_at && new Date(grant.expires_at) > new Date();
+
+      return {
+        id: grant.id.toString(),
+        userId: `OCGID${String(grant.user_id).padStart(3, "0")}`,
+        userName: grant.full_name || grant.user_name || "",
+        userEmail: grant.email || grant.user_email || "",
+        region: grant.region_name,
+        grantedBy: `OCGID${String(grant.granted_by).padStart(3, "0")}`,
+        grantedByName: grant.granted_by_username || grant.granted_by_name || "",
+        grantedAt: new Date(grant.granted_at),
+        expiresAt: new Date(grant.expires_at),
+        reason: grant.reason || "",
+        isActive,
+        revokedAt: grant.revoked_at ? new Date(grant.revoked_at) : undefined,
+        revokedBy: grant.revoked_by
+          ? `OCGID${String(grant.revoked_by).padStart(3, "0")}`
+          : undefined,
+        revokedByName: grant.revoked_by_name || undefined,
+        revokedReason: grant.revoked_reason || undefined,
+        timeRemaining: grant.time_remaining || null
+      };
+    });
+
+    console.log('📊 Transformed grants:', grants);
+    return grants;
+  } catch (error: any) {
+    console.error("Error fetching temporary access from backend:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get current user's active temporary access (from their perspective)
+ */
+export const getMyActiveTemporaryAccess = async (): Promise<TemporaryRegionAccess[]> => {
+  try {
+    const response = await apiClient.get<{
+      success: boolean;
+      message?: string;
+      access: any[];
+      count: number;
+    }>("/temporary-access/my-access");
+
+    const data = response.data;
+    if (!data.success) {
+      throw new Error(data.message || "Failed to fetch your temporary access");
+    }
+
+    console.log('📥 Fetched my temporary access from backend:', data.access);
+
+    const grants = data.access.map((grant: any) => ({
+      id: grant.id.toString(),
+      userId: `OCGID${String(grant.user_id).padStart(3, "0")}`,
+      userName: grant.full_name || "",
+      userEmail: grant.email || "",
+      region: grant.region_name,
+      grantedBy: `OCGID${String(grant.granted_by).padStart(3, "0")}`,
+      grantedByName: grant.granted_by_name || grant.granted_by_username || "",
+      grantedAt: new Date(grant.granted_at),
+      expiresAt: new Date(grant.expires_at),
+      reason: grant.reason || "",
+      isActive: true, // This endpoint only returns active grants
+      timeRemaining: grant.time_remaining || null
+    }));
+
+    return grants;
+  } catch (error: any) {
+    console.error("Error fetching my temporary access from backend:", error);
+    return [];
+  }
 };
 
 /**
@@ -248,8 +262,14 @@ export const hasTemporaryAccess = async (
   userId: string,
   region: string
 ): Promise<boolean> => {
-  const grants = await getActiveTemporaryAccess(userId);
-  return grants.some((grant) => grant.region === region);
+  try {
+    // Use user-specific endpoint (works for all roles)
+    const grants = await getMyActiveTemporaryAccess();
+    return grants.some((grant) => grant.region === region);
+  } catch (error) {
+    console.error('Error checking temporary access:', error);
+    return false; // Return false on error instead of throwing
+  }
 };
 
 /**
@@ -298,90 +318,52 @@ export const revokeTemporaryAccess = async (
   revokedBy: User,
   reason?: string
 ): Promise<TemporaryRegionAccess | null> => {
-  if (USE_BACKEND) {
-    try {
-      const response = await apiClient.request({
-        method: "DELETE",
-        url: `/temporary-access/${grantId}`,
-        data: { reason }
-      });
+  try {
+    const response = await apiClient.request({
+      method: "DELETE",
+      url: `/temporary-access/${grantId}`,
+      data: { reason }
+    });
 
-      const data = response.data as unknown as { success: boolean; message?: string };
-      if (!data.success) {
-        throw new Error(
-          data.message || "Failed to revoke temporary access"
-        );
-      }
-
-      // Backend only returns success message, need to fetch updated grant
-      const allGrants = await getTemporaryAccess();
-      const updatedGrant = allGrants.find(g => g.id === grantId);
-
-      if (updatedGrant) {
-        return updatedGrant;
-      }
-
-      // If not found in backend, create a revoked grant object
-      return {
-        id: grantId,
-        userId: "",
-        userName: "",
-        userEmail: "",
-        region: "",
-        grantedBy: "",
-        grantedByName: "",
-        grantedAt: new Date(),
-        expiresAt: new Date(),
-        reason: "",
-        isActive: false,
-        revokedAt: new Date(),
-        revokedBy: revokedBy.id,
-        revokedByName: revokedBy.name,
-        revokedReason: reason
-      } as TemporaryRegionAccess;
-    } catch (error: any) {
-      console.error("Error revoking temporary access from backend:", error);
-      // Fall back to localStorage
+    const data = response.data as unknown as { success: boolean; message?: string };
+    if (!data.success) {
+      throw new Error(
+        data.message || "Failed to revoke temporary access"
+      );
     }
-  }
 
-  // localStorage implementation
-  const grants = getTemporaryAccessFromLocal();
-  const grant = grants.find((g) => g.id === grantId);
+    // Backend only returns success message, need to fetch updated grant
+    const allGrants = await getTemporaryAccess();
+    const updatedGrant = allGrants.find(g => g.id === grantId);
 
-  if (!grant) {
+    if (updatedGrant) {
+      // Log audit event
+      logAuditEvent(
+        revokedBy,
+        "REGION_REVOKED",
+        `Revoked temporary access to ${updatedGrant.region} for ${updatedGrant.userName}`,
+        {
+          severity: "warning",
+          region: updatedGrant.region,
+          details: {
+            targetUserId: updatedGrant.userId,
+            targetUserName: updatedGrant.userName,
+            grantId,
+            reason
+          },
+          success: true
+        }
+      );
+
+      return updatedGrant;
+    }
+
+    // If not found in backend, return null
     return null;
+  } catch (error: any) {
+    console.error("Error revoking temporary access from backend:", error);
+    throw error;
   }
-
-  // Update grant
-  grant.isActive = false;
-  grant.revokedAt = new Date();
-  grant.revokedBy = revokedBy.id;
-  grant.revokedByName = revokedBy.name;
-  grant.revokedReason = reason;
-
-  // Save updated grants
-  saveGrants(grants);
-
-  // Log audit event
-  logAuditEvent(
-    revokedBy,
-    "REGION_REVOKED",
-    `Revoked temporary access to ${grant.region} for ${grant.userName}`,
-    {
-      severity: "warning",
-      region: grant.region,
-      details: {
-        targetUserId: grant.userId,
-        targetUserName: grant.userName,
-        grantId,
-        reason
-      },
-      success: true
-    }
-  );
-
-  return grant;
 };
 
 /**

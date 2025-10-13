@@ -2,6 +2,44 @@ const { pool } = require('../config/database');
 const { hashPassword } = require('../utils/bcrypt');
 
 /**
+ * Helper function to calculate time remaining
+ */
+const calculateTimeRemaining = (seconds) => {
+  if (!seconds || seconds <= 0) {
+    return {
+      expired: true,
+      display: 'Expired',
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      total_seconds: 0
+    };
+  }
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  let display = '';
+  if (days > 0) display += `${days}d `;
+  if (hours > 0) display += `${hours}h `;
+  if (minutes > 0) display += `${minutes}m `;
+  if (secs > 0 && days === 0) display += `${secs}s`;
+
+  return {
+    expired: false,
+    display: display.trim() || 'Just now',
+    days,
+    hours,
+    minutes,
+    seconds: secs,
+    total_seconds: seconds
+  };
+};
+
+/**
  * @route   GET /api/users
  * @desc    Get all users (paginated)
  * @access  Private (Manager/Admin)
@@ -38,7 +76,7 @@ const getAllUsers = async (req, res) => {
 
     const [users] = await pool.query(query, params);
 
-    // Fetch regions for each user
+    // Fetch regions and temporary access for each user
     for (const user of users) {
       const [regions] = await pool.query(
         `SELECT r.name
@@ -48,6 +86,33 @@ const getAllUsers = async (req, res) => {
         [user.id]
       );
       user.assignedRegions = regions.map(r => r.name);
+
+      // Fetch active temporary access with time remaining
+      const [tempAccess] = await pool.query(
+        `SELECT ta.id, r.name as region_name, ta.expires_at,
+                TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), ta.expires_at) as seconds_remaining,
+                u2.full_name as granted_by_name, ta.granted_at, ta.reason
+         FROM temporary_access ta
+         INNER JOIN regions r ON ta.resource_id = r.id
+         LEFT JOIN users u2 ON ta.granted_by = u2.id
+         WHERE ta.user_id = ?
+           AND ta.resource_type = 'region'
+           AND ta.revoked_at IS NULL
+           AND ta.expires_at > UTC_TIMESTAMP()
+         ORDER BY ta.expires_at ASC`,
+        [user.id]
+      );
+
+      user.temporaryAccess = tempAccess.map(ta => ({
+        id: ta.id,
+        region: ta.region_name,
+        expiresAt: ta.expires_at,
+        grantedAt: ta.granted_at,
+        grantedByName: ta.granted_by_name,
+        reason: ta.reason,
+        secondsRemaining: ta.seconds_remaining,
+        timeRemaining: calculateTimeRemaining(ta.seconds_remaining)
+      }));
     }
 
     res.json({
@@ -247,7 +312,7 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { full_name, email, gender, role, phone, department, office_location, street, city, state, pincode, assignedRegions } = req.body;
+    const { username, full_name, email, gender, role, phone, department, office_location, street, city, state, pincode, assignedRegions } = req.body;
 
     console.log('=== UPDATE USER DEBUG ===');
     console.log('User ID:', id);
@@ -263,6 +328,20 @@ const updateUser = async (req, res) => {
     const updates = [];
     const params = [];
 
+    if (username) {
+      // Check if username is already taken by another user
+      const [existingUsers] = await pool.query(
+        'SELECT id FROM users WHERE username = ? AND id != ?',
+        [username, id]
+      );
+
+      if (existingUsers.length > 0) {
+        return res.status(400).json({ success: false, error: 'Username already in use' });
+      }
+
+      updates.push('username = ?');
+      params.push(username);
+    }
     if (full_name) {
       updates.push('full_name = ?');
       params.push(full_name);

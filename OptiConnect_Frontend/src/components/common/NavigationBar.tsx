@@ -3,7 +3,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAppSelector } from "../../store";
-import { getActiveTemporaryAccess } from "../../services/temporaryAccessService";
+import { getMyActiveTemporaryAccess } from "../../services/temporaryAccessService";
+import type { TemporaryRegionAccess } from "../../types/temporaryAccess.types";
 
 const NavigationBar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -14,27 +15,38 @@ const NavigationBar: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = React.useState(false);
   const [temporaryAccessCount, setTemporaryAccessCount] = React.useState(0);
-  const [tempRegions, setTempRegions] = React.useState<string[]>([]);
+  const [tempAccessGrants, setTempAccessGrants] = React.useState<
+    TemporaryRegionAccess[]
+  >([]);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Fetch temporary access on component mount and when dropdown opens
   React.useEffect(() => {
     const fetchTemporaryAccess = async () => {
-      if (user?.id) {
-        try {
-          const activeAccess = await getActiveTemporaryAccess(user.id);
-          setTemporaryAccessCount(activeAccess.length);
-          setTempRegions(activeAccess.map(access => access.region));
-        } catch (error) {
-          console.error('Error fetching temporary access:', error);
-        }
+      try {
+        // Use the correct endpoint for regular users
+        const activeAccess = await getMyActiveTemporaryAccess();
+
+        // Filter out expired grants (double-check on frontend)
+        const now = new Date();
+        const validGrants = activeAccess.filter((grant) => {
+          const expiresAt = new Date(grant.expiresAt);
+          return expiresAt > now;
+        });
+
+        setTemporaryAccessCount(validGrants.length);
+        setTempAccessGrants(validGrants);
+      } catch (error) {
+        console.error("Error fetching temporary access:", error);
+        setTemporaryAccessCount(0);
+        setTempAccessGrants([]);
       }
     };
 
     if (isAuthenticated && user) {
       fetchTemporaryAccess();
-      // Refresh every 60 seconds
-      const interval = setInterval(fetchTemporaryAccess, 60000);
+      // Refresh every 10 seconds for accurate countdown
+      const interval = setInterval(fetchTemporaryAccess, 10000);
       return () => clearInterval(interval);
     }
   }, [user, isAuthenticated]);
@@ -42,15 +54,18 @@ const NavigationBar: React.FC = () => {
   // Close profile dropdown on outside click
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+      if (
+        profileDropdownRef.current &&
+        !profileDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowProfileDropdown(false);
       }
     };
 
     if (showProfileDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener("mousedown", handleClickOutside);
       };
     }
   }, [showProfileDropdown]);
@@ -58,24 +73,11 @@ const NavigationBar: React.FC = () => {
   const handleLogout = () => {
     setShowProfileDropdown(false);
     logout();
-    navigate('/login');
+    navigate("/login");
   };
 
   // Define all navigation items with role-based access control and vibrant colors
   const allNavigation = [
-    {
-      name: "Dashboard",
-      href: "/dashboard",
-      color: "from-blue-500 to-blue-600",
-      iconColor: "text-blue-600 dark:text-blue-400",
-      bgColor: "bg-blue-50 dark:bg-blue-900/20",
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-      roles: ["Admin", "Manager", "Technician", "User"]
-    },
     {
       name: "Map",
       href: "/map",
@@ -83,8 +85,41 @@ const NavigationBar: React.FC = () => {
       iconColor: "text-emerald-600 dark:text-emerald-400",
       bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+          />
+        </svg>
+      ),
+      roles: ["Admin", "Manager", "Technician", "User"]
+    },
+    {
+      name: "Dashboard",
+      href: "/dashboard",
+      color: "from-blue-500 to-blue-600",
+      iconColor: "text-blue-600 dark:text-blue-400",
+      bgColor: "bg-blue-50 dark:bg-blue-900/20",
+      icon: (
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+          />
         </svg>
       ),
       roles: ["Admin", "Manager", "Technician", "User"]
@@ -96,8 +131,18 @@ const NavigationBar: React.FC = () => {
       iconColor: "text-violet-600 dark:text-violet-400",
       bgColor: "bg-violet-50 dark:bg-violet-900/20",
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+          />
         </svg>
       ),
       roles: ["Admin", "Manager"]
@@ -109,8 +154,18 @@ const NavigationBar: React.FC = () => {
       iconColor: "text-amber-600 dark:text-amber-400",
       bgColor: "bg-amber-50 dark:bg-amber-900/20",
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+          />
         </svg>
       ),
       roles: ["Admin", "Manager"]
@@ -122,9 +177,24 @@ const NavigationBar: React.FC = () => {
       iconColor: "text-rose-600 dark:text-rose-400",
       bgColor: "bg-rose-50 dark:bg-rose-900/20",
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
         </svg>
       ),
       roles: ["Admin"]
@@ -136,8 +206,18 @@ const NavigationBar: React.FC = () => {
       iconColor: "text-cyan-600 dark:text-cyan-400",
       bgColor: "bg-cyan-50 dark:bg-cyan-900/20",
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+          />
         </svg>
       ),
       roles: ["Admin", "Manager"]
@@ -145,8 +225,8 @@ const NavigationBar: React.FC = () => {
   ];
 
   // Filter navigation items based on user role
-  const navigation = allNavigation.filter(item =>
-    user?.role && item.roles.includes(user.role)
+  const navigation = allNavigation.filter(
+    (item) => user?.role && item.roles.includes(user.role)
   );
 
   const isActive = (path: string) => {
@@ -183,14 +263,29 @@ const NavigationBar: React.FC = () => {
                   } inline-flex items-center gap-2 px-3 pt-1 pb-1 text-sm transition-all duration-200 group relative`}
                 >
                   {/* Fixed: Icons now visible in light mode with proper stroke width */}
-                  <span className={`transform group-hover:scale-110 transition-all duration-200`}>
-                    <svg className={`h-5 w-5 ${isActive(item.href) ? item.iconColor : 'text-gray-700 dark:text-gray-400 group-hover:' + item.iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <span
+                    className={`transform group-hover:scale-110 transition-all duration-200`}
+                  >
+                    <svg
+                      className={`h-5 w-5 ${
+                        isActive(item.href)
+                          ? item.iconColor
+                          : "text-gray-700 dark:text-gray-400 group-hover:" +
+                            item.iconColor
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
                       {item.icon.props.children}
                     </svg>
                   </span>
                   <span className="font-medium">{item.name}</span>
                   {isActive(item.href) && (
-                    <span className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-gradient-to-r ${item.color}`}></span>
+                    <span
+                      className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-gradient-to-r ${item.color}`}
+                    ></span>
                   )}
                 </Link>
               ))}
@@ -299,9 +394,22 @@ const NavigationBar: React.FC = () => {
                     </div>
                     {/* Online status indicator or Temporary Access indicator */}
                     {temporaryAccessCount > 0 ? (
-                      <div className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-amber-500 border-2 border-white dark:border-gray-800 ring-2 ring-amber-500/30 flex items-center justify-center" title={`${temporaryAccessCount} temporary access grants`}>
-                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <div
+                        className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-amber-500 border-2 border-white dark:border-gray-800 ring-2 ring-amber-500/30 flex items-center justify-center"
+                        title={`${temporaryAccessCount} temporary access grants`}
+                      >
+                        <svg
+                          className="w-2.5 h-2.5 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
                       </div>
                     ) : (
@@ -336,7 +444,7 @@ const NavigationBar: React.FC = () => {
 
               {/* Profile Dropdown Menu - Enhanced */}
               {showProfileDropdown && (
-                <div className="absolute right-0 mt-2 w-80 rounded-xl shadow-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden backdrop-blur-lg animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                <div className="absolute right-0 mt-2 w-80 max-h-[70vh] overflow-y-auto rounded-xl shadow-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 backdrop-blur-lg animate-in fade-in slide-in-from-top-2 duration-200 z-50">
                   {/* Header Section with Gradient */}
                   <div className="px-6 py-5 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-blue-900/20 dark:via-purple-900/20 dark:to-pink-900/20 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center space-x-4">
@@ -363,7 +471,11 @@ const NavigationBar: React.FC = () => {
                         {/* Role Badge */}
                         <div className="mt-2 flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md">
-                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <svg
+                              className="w-3 h-3 mr-1"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
                               <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                             </svg>
                             {user?.role}
@@ -372,8 +484,18 @@ const NavigationBar: React.FC = () => {
                           {/* Temporary Access Badge */}
                           {temporaryAccessCount > 0 && (
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md animate-pulse">
-                              <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              <svg
+                                className="w-3 h-3 mr-1"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
                               </svg>
                               Temp Access ({temporaryAccessCount})
                             </span>
@@ -391,8 +513,18 @@ const NavigationBar: React.FC = () => {
                       onClick={() => setShowProfileDropdown(false)}
                       className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group"
                     >
-                      <svg className="w-5 h-5 mr-3 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      <svg
+                        className="w-5 h-5 mr-3 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
                       </svg>
                       <span className="font-medium">View Profile</span>
                     </Link>
@@ -403,79 +535,213 @@ const NavigationBar: React.FC = () => {
                       onClick={() => setShowProfileDropdown(false)}
                       className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors group"
                     >
-                      <svg className="w-5 h-5 mr-3 text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <svg
+                        className="w-5 h-5 mr-3 text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
                       </svg>
                       <span className="font-medium">Settings</span>
+                    </Link>
+
+                    {/* Request Region Access Link */}
+                    <Link
+                      to="/request-region"
+                      onClick={() => setShowProfileDropdown(false)}
+                      className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors group"
+                    >
+                      <svg
+                        className="w-5 h-5 mr-3 text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                        />
+                      </svg>
+                      <span className="font-medium">Request Region Access</span>
                     </Link>
 
                     {/* Stats Section */}
                     <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border-y border-gray-200 dark:border-gray-700 my-2">
                       <div className="grid grid-cols-2 gap-3">
                         <div className="text-center p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Company</p>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white mt-1 truncate">{user?.company || 'N/A'}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            Company
+                          </p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white mt-1 truncate">
+                            {user?.company || "N/A"}
+                          </p>
                         </div>
                         <div className="text-center p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Regions</p>
-                          <p className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-1">{user?.assignedRegions?.length || 0}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            Regions
+                          </p>
+                          <p className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-1">
+                            {user?.assignedRegions?.length || 0}
+                          </p>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Temporary Access Regions */}
-                  {tempRegions.length > 0 && (
+                  {/* Temporary Access Regions with Time Remaining */}
+                  {tempAccessGrants.length > 0 && (
                     <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10">
-                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-3 flex items-center">
+                        <svg
+                          className="w-4 h-4 mr-1.5 animate-pulse"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
-                        Temporary Access Regions
+                        Temporary Access ({tempAccessGrants.length})
                       </p>
-                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
-                        {tempRegions.slice(0, 6).map((region: string) => (
-                          <span
-                            key={region}
-                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {tempAccessGrants.map((grant) => (
+                          <div
+                            key={grant.id}
+                            className="bg-white dark:bg-gray-800 rounded-lg p-2.5 border border-amber-200 dark:border-amber-800 hover:shadow-md transition-shadow"
                           >
-                            {region}
-                          </span>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate flex items-center">
+                                  <svg
+                                    className="w-3.5 h-3.5 mr-1 text-amber-600 dark:text-amber-400"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                    />
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                    />
+                                  </svg>
+                                  {grant.region}
+                                </p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                  Expires:{" "}
+                                  {new Date(grant.expiresAt).toLocaleString(
+                                    "en-IN",
+                                    {
+                                      month: "short",
+                                      day: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit"
+                                    }
+                                  )}
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0">
+                                {grant.timeRemaining &&
+                                !grant.timeRemaining.expired ? (
+                                  <span
+                                    className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold ${
+                                      grant.timeRemaining.days === 0 &&
+                                      grant.timeRemaining.hours === 0
+                                        ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 animate-pulse"
+                                        : grant.timeRemaining.days === 0
+                                        ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300"
+                                        : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                    }`}
+                                  >
+                                    <svg
+                                      className="w-3 h-3 mr-1"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                      />
+                                    </svg>
+                                    {grant.timeRemaining.display}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                    Expired
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         ))}
-                        {tempRegions.length > 6 && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200">
-                            +{tempRegions.length - 6} more
-                          </span>
-                        )}
                       </div>
                     </div>
                   )}
 
-                  {/* Assigned Regions Preview */}
+                  {/* Permanent Regions Preview */}
                   {user?.assignedRegions && user.assignedRegions.length > 0 && (
-                    <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-emerald-50/30 dark:bg-emerald-900/10">
+                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-3 flex items-center">
+                        <svg
+                          className="w-4 h-4 mr-1.5 text-emerald-600 dark:text-emerald-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
-                        Your Regions
+                        Permanent Access ({user.assignedRegions.length})
                       </p>
-                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
-                        {user.assignedRegions.slice(0, 6).map((region: string) => (
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                        {user.assignedRegions.map((region: string) => (
                           <span
                             key={region}
-                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
+                            className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700"
                           >
+                            <svg
+                              className="w-3 h-3 mr-1 text-emerald-600 dark:text-emerald-400"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                             {region}
                           </span>
                         ))}
-                        {user.assignedRegions.length > 6 && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200">
-                            +{user.assignedRegions.length - 6} more
-                          </span>
-                        )}
                       </div>
                     </div>
                   )}
@@ -524,7 +790,13 @@ const NavigationBar: React.FC = () => {
                     : "border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
                 } flex items-center gap-3 pl-3 pr-4 py-3 border-l-4 text-base transition-all duration-200`}
               >
-                <span className={`flex-shrink-0 ${isActive(item.href) ? item.iconColor : ''}`}>{item.icon}</span>
+                <span
+                  className={`flex-shrink-0 ${
+                    isActive(item.href) ? item.iconColor : ""
+                  }`}
+                >
+                  {item.icon}
+                </span>
                 <span className="font-medium">{item.name}</span>
               </Link>
             ))}

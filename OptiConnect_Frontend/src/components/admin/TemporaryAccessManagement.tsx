@@ -93,10 +93,10 @@ const TemporaryAccessManagement: React.FC = () => {
   }, [filterUserId, filterRegion, filterStatus, isAdmin]);
 
   const loadData = async () => {
-    const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
+    setLoading(true);
 
-    // Load users
-    if (USE_BACKEND) {
+    try {
+      // Always load users from backend
       try {
         const backendUsers = await getAllUsers();
         // Map backend users to User type expected by component
@@ -112,55 +112,79 @@ const TemporaryAccessManagement: React.FC = () => {
           }));
         setUsers(mappedUsers);
         console.log('📊 Temporary Access: Loaded real users from backend:', mappedUsers.length);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to load users from backend:', error);
-        // Fallback to localStorage
-        loadUsersFromLocalStorage();
+        if (error.response?.status === 401) {
+          showNotification('error', 'Authentication Required', 'Please log in to access this page.');
+          return;
+        }
+        setUsers([]);
       }
-    } else {
-      // Use localStorage in mock mode
-      loadUsersFromLocalStorage();
+
+      // Load grants with filters
+      let filteredGrants: TemporaryRegionAccess[];
+
+      const filter: TemporaryAccessFilter = {};
+      if (filterUserId) filter.userId = filterUserId;
+      if (filterRegion) filter.region = filterRegion;
+
+      if (filterStatus === 'active') {
+        filter.isActive = true;
+      }
+
+      try {
+        if (filterUserId || filterRegion || filterStatus !== 'all') {
+          filteredGrants = await getFilteredTemporaryAccess(filter);
+        } else {
+          filteredGrants = await getTemporaryAccess();
+        }
+
+        // Additional filtering for expired/revoked
+        const now = new Date();
+        if (filterStatus === 'expired') {
+          filteredGrants = filteredGrants.filter(g => !g.revokedAt && g.expiresAt < now);
+        } else if (filterStatus === 'revoked') {
+          filteredGrants = filteredGrants.filter(g => g.revokedAt);
+        }
+
+        setGrants(filteredGrants);
+      } catch (error: any) {
+        console.error('Failed to load grants:', error);
+        if (error.response?.status === 401) {
+          showNotification('error', 'Authentication Required', 'Please log in to access temporary access data.');
+          return;
+        }
+        setGrants([]);
+      }
+
+      // Load statistics
+      try {
+        const tempStats = await getTemporaryAccessStats();
+        setStats({
+          total: tempStats.totalGrants,
+          active: tempStats.activeGrants,
+          expired: tempStats.expiredGrants,
+          revoked: tempStats.revokedGrants
+        });
+      } catch (error: any) {
+        console.error('Failed to load stats:', error);
+        if (error.response?.status !== 401) {
+          // Only show non-auth errors, auth error already shown
+          setStats({ total: 0, active: 0, expired: 0, revoked: 0 });
+        }
+      }
+
+      // Load expiring grants
+      try {
+        const expiring = await getExpiringGrants(7);
+        setExpiringGrants(expiring);
+      } catch (error: any) {
+        console.error('Failed to load expiring grants:', error);
+        setExpiringGrants([]);
+      }
+    } finally {
+      setLoading(false);
     }
-
-    // Load grants with filters
-    let filteredGrants: TemporaryRegionAccess[];
-
-    const filter: TemporaryAccessFilter = {};
-    if (filterUserId) filter.userId = filterUserId;
-    if (filterRegion) filter.region = filterRegion;
-
-    if (filterStatus === 'active') {
-      filter.isActive = true;
-    }
-
-    if (filterUserId || filterRegion || filterStatus !== 'all') {
-      filteredGrants = await getFilteredTemporaryAccess(filter);
-    } else {
-      filteredGrants = await getTemporaryAccess();
-    }
-
-    // Additional filtering for expired/revoked
-    const now = new Date();
-    if (filterStatus === 'expired') {
-      filteredGrants = filteredGrants.filter(g => !g.revokedAt && g.expiresAt < now);
-    } else if (filterStatus === 'revoked') {
-      filteredGrants = filteredGrants.filter(g => g.revokedAt);
-    }
-
-    setGrants(filteredGrants);
-
-    // Load statistics
-    const tempStats = await getTemporaryAccessStats();
-    setStats({
-      total: tempStats.totalGrants,
-      active: tempStats.activeGrants,
-      expired: tempStats.expiredGrants,
-      revoked: tempStats.revokedGrants
-    });
-
-    // Load expiring grants
-    const expiring = await getExpiringGrants(7);
-    setExpiringGrants(expiring);
   };
 
   const loadUsersFromLocalStorage = () => {
@@ -715,11 +739,24 @@ const TemporaryAccessManagement: React.FC = () => {
                       <div className="text-sm text-gray-900 dark:text-white">
                         {formatDate(grant.expiresAt)}
                       </div>
-                      {isExpiringSoon(grant) && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 mt-1">
-                          Expiring Soon
+                      {grant.timeRemaining && !grant.timeRemaining.expired ? (
+                        <div className="mt-1">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            grant.timeRemaining.days <= 1
+                              ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                              : grant.timeRemaining.days <= 7
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                          }`}>
+                            <ClockIcon className="h-3 w-3 mr-1" />
+                            {grant.timeRemaining.display} remaining
+                          </span>
+                        </div>
+                      ) : grant.timeRemaining?.expired && !grant.revokedAt ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 mt-1">
+                          Time expired
                         </span>
-                      )}
+                      ) : null}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(grant)}

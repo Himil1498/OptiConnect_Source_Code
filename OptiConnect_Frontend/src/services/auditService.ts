@@ -1,5 +1,6 @@
 // Audit logging service for tracking user actions and system events
 
+import axios from 'axios';
 import type {
   AuditLogEntry,
   AuditEventType,
@@ -11,11 +12,30 @@ import type { User } from '../types/auth.types';
 
 const STORAGE_KEY = 'gis_audit_logs';
 const MAX_LOGS = 10000; // Keep last 10,000 logs
+const BACKEND_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+// Create axios instance for audit logging
+const apiClient = axios.create({
+  baseURL: BACKEND_API_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Add authorization header interceptor
+apiClient.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem('opti_connect_token');
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 /**
  * Log an audit event
  */
-export const logAuditEvent = (
+export const logAuditEvent = async (
   user: User | null,
   eventType: AuditEventType,
   action: string,
@@ -27,7 +47,7 @@ export const logAuditEvent = (
     success?: boolean;
     errorMessage?: string;
   } = {}
-): AuditLogEntry => {
+): Promise<AuditLogEntry> => {
   const entry: AuditLogEntry = {
     id: `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     timestamp: new Date(),
@@ -45,7 +65,27 @@ export const logAuditEvent = (
     errorMessage: options.errorMessage
   };
 
-  // Get existing logs
+  // Save to backend
+  try {
+    await apiClient.post('/audit/logs', {
+      action: action,
+      resource_type: eventType,
+      resource_id: options.region || null,
+      details: {
+        severity: options.severity || 'info',
+        toolName: options.toolName,
+        success: options.success !== undefined ? options.success : true,
+        errorMessage: options.errorMessage,
+        ...options.details
+      }
+    });
+    console.log('✅ Audit log saved to database:', action);
+  } catch (error) {
+    console.error('Failed to save audit log to backend:', error);
+    // Continue to save to localStorage even if backend fails
+  }
+
+  // Get existing logs from localStorage
   const logs = getAuditLogs();
 
   // Add new entry at the beginning
@@ -60,7 +100,7 @@ export const logAuditEvent = (
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
   } catch (error) {
-    console.error('Failed to save audit log:', error);
+    console.error('Failed to save audit log to localStorage:', error);
   }
 
   return entry;

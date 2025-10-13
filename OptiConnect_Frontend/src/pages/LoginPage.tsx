@@ -17,7 +17,7 @@ const LoginPage: React.FC = () => {
 
   // Redirect if already authenticated
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/map" replace />;
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,7 +79,9 @@ const LoginPage: React.FC = () => {
           </p>
           <div className="mt-2 flex items-center justify-center space-x-1.5">
             <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></div>
-            <p className="text-xs text-green-600 dark:text-green-400 font-medium">System Online</p>
+            <p className="text-xs text-green-600 dark:text-green-400 font-medium">
+              System Online
+            </p>
           </div>
         </div>
 
@@ -106,7 +108,9 @@ const LoginPage: React.FC = () => {
                     clipRule="evenodd"
                   />
                 </svg>
-                <span className="text-gray-900 dark:text-gray-100">Email / Username / User ID</span>
+                <span className="text-gray-900 dark:text-gray-100">
+                  Email / Username / User ID
+                </span>
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -153,7 +157,9 @@ const LoginPage: React.FC = () => {
                     clipRule="evenodd"
                   />
                 </svg>
-                <span className="text-gray-900 dark:text-gray-100">Password</span>
+                <span className="text-gray-900 dark:text-gray-100">
+                  Password
+                </span>
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

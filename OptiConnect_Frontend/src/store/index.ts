@@ -1,7 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, TypedUseSelectorHook } from 'react-redux';
 import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
-import storage from 'redux-persist/lib/storage';
+import createWebStorage from 'redux-persist/lib/storage/createWebStorage';
 import { combineReducers } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 import mapReducer from './slices/mapSlice';
@@ -11,11 +11,30 @@ import analyticsReducer from './slices/analyticsSlice';
 import userReducer from './slices/userSlice';
 import gisToolsReducer from './slices/gisToolsSlice';
 
-// Redux Persist configuration (INDUSTRY STANDARD for auth persistence)
+// Custom sessionStorage for redux-persist (auto-clears on browser close)
+const createNoopStorage = () => {
+  return {
+    getItem(_key: string) {
+      return Promise.resolve(null);
+    },
+    setItem(_key: string, value: any) {
+      return Promise.resolve(value);
+    },
+    removeItem(_key: string) {
+      return Promise.resolve();
+    },
+  };
+};
+
+const storage = typeof window !== 'undefined'
+  ? createWebStorage('session') // Use sessionStorage instead of localStorage
+  : createNoopStorage();
+
+// Redux Persist configuration (auto-logout on browser close)
 const persistConfig = {
   key: 'root',
   version: 1,
-  storage,
+  storage, // Now using sessionStorage
   whitelist: ['auth'], // Only persist auth state
   blacklist: ['map', 'ui'], // Don't persist map instance or UI state
 };

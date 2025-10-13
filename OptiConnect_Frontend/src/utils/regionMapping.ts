@@ -2,7 +2,7 @@
 
 import type { User } from '../types/auth.types';
 import { logAuditEvent } from '../services/auditService';
-import { hasTemporaryAccess } from '../services/temporaryAccessService';
+import { hasTemporaryAccess, getMyActiveTemporaryAccess } from '../services/temporaryAccessService';
 
 /**
  * Indian States/UTs with their map identifiers
@@ -61,9 +61,42 @@ export const INDIAN_STATES = [
 ];
 
 /**
- * Get assigned regions for a user
+ * Get assigned regions for a user (including active temporary access)
  */
-export const getUserAssignedRegions = (user: User | null): string[] => {
+export const getUserAssignedRegions = async (user: User | null): Promise<string[]> => {
+  if (!user) return [];
+
+  // Admin has access to all regions
+  if (user.role === 'Admin') {
+    return INDIAN_STATES;
+  }
+
+  // Get permanent regions
+  const permanentRegions = user.assignedRegions || [];
+
+  // Get active temporary access regions
+  try {
+    const tempAccess = await getMyActiveTemporaryAccess();
+    // Filter expired ones (double-check on frontend)
+    const now = new Date();
+    const activeGrants = tempAccess.filter(grant => new Date(grant.expiresAt) > now);
+    const tempRegions = activeGrants.map(grant => grant.region);
+
+    // Combine permanent and temporary (remove duplicates)
+    const allRegions = Array.from(new Set([...permanentRegions, ...tempRegions]));
+    return allRegions;
+  } catch (error) {
+    console.error('Error fetching temporary access:', error);
+    // Return just permanent regions if temporary access fetch fails
+    return permanentRegions;
+  }
+};
+
+/**
+ * Get assigned regions for a user (synchronous version - only permanent)
+ * Use this when you need immediate access without async
+ */
+export const getUserAssignedRegionsSync = (user: User | null): string[] => {
   if (!user) return [];
 
   // Admin has access to all regions
@@ -410,8 +443,8 @@ export const isPointInAssignedRegion = async (
     };
   }
 
-  // Get user's assigned regions
-  const assignedRegions = getUserAssignedRegions(user);
+  // Get user's assigned regions (use sync version here since we're already in async context)
+  const assignedRegions = getUserAssignedRegionsSync(user);
 
   // If user has no assigned regions, deny access
   if (assignedRegions.length === 0) {

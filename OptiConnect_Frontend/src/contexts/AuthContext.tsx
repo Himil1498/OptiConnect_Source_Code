@@ -3,6 +3,7 @@ import { useAppSelector, useAppDispatch } from '../store';
 import { loginStart, loginSuccess, loginFailure, logout, clearError } from '../store/slices/authSlice';
 import type { User, LoginCredentials } from '../types/auth.types';
 import { apiService } from '../services/apiService';
+import { sessionManager } from '../utils/sessionManager';
 
 interface AuthContextType {
   user: User | null;
@@ -25,15 +26,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dispatch = useAppDispatch();
   const { user, isAuthenticated, isLoading, error, token } = useAppSelector((state) => state.auth);
 
+  // Initialize session manager for auto-logout on browser close
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Start session tracking
+      sessionManager.initSession();
+
+      // Register logout callback
+      sessionManager.onLogout(() => {
+        console.log('⏱️ Auto-logout triggered by session manager');
+        handleLogout();
+      });
+
+      return () => {
+        // Cleanup on unmount (but session continues in other tabs)
+        sessionManager.destroy();
+      };
+    }
+  }, [isAuthenticated]);
+
+  // Check session validity on mount
+  useEffect(() => {
+    if (isAuthenticated && !sessionManager.isSessionValid()) {
+      console.warn('⚠️ Session invalid - logging out');
+      handleLogout();
+    }
+  }, []);
+
   // Background token verification - DISABLED for now to ensure session persistence
   // Token is only invalidated on explicit logout or 401/403 from API
   useEffect(() => {
     // Optional: Verify token in background but NEVER logout automatically
     // This can be used for logging/monitoring only
     const verifyAuth = async () => {
-      const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
-
-      if (isAuthenticated && token && USE_BACKEND) {
+      if (isAuthenticated && token) {
         try {
           const isValid = await apiService.verifyToken(token);
           if (!isValid) {
@@ -76,108 +102,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     dispatch(loginStart());
 
     try {
-      // Check if we should use backend
-      const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
-
-      if (!USE_BACKEND) {
-        // Mock mode - use development mock data
-        console.log('🔄 Using mock authentication (backend disabled)');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        let mockUser: User;
-        switch (credentials.email.toLowerCase()) {
-          case 'admin@example.com':
-            mockUser = {
-              id: 'admin_001',
-              email: credentials.email,
-              name: 'Admin User',
-              role: 'Admin',
-              company: credentials.company || 'Opti Telemedia',
-              permissions: ['all'],
-              lastLogin: new Date().toISOString(),
-              username: 'admin',
-              password: '********',
-              gender: 'Male',
-              phoneNumber: '+91-9876543210',
-              address: {
-                street: 'Admin Street',
-                city: 'Mumbai',
-                state: 'Maharashtra',
-                pincode: '400001'
-              },
-              officeLocation: 'Mumbai HQ',
-              assignedUnder: [],
-              assignedRegions: [],
-              groups: [],
-              status: 'Active',
-              loginHistory: [],
-            };
-            break;
-
-          case 'field@example.com':
-            mockUser = {
-              id: 'field_001',
-              email: credentials.email,
-              name: 'Field Engineer',
-              role: 'Manager',
-              company: credentials.company || 'Opti Telemedia',
-              permissions: ['read', 'write'],
-              lastLogin: new Date().toISOString(),
-              username: 'field',
-              password: '********',
-              gender: 'Male',
-              phoneNumber: '+91-9876543211',
-              address: {
-                street: 'Field Street',
-                city: 'Pune',
-                state: 'Maharashtra',
-                pincode: '411001'
-              },
-              officeLocation: 'Pune Office',
-              assignedUnder: ['admin_001'],
-              assignedRegions: ['Maharashtra', 'Karnataka'],
-              groups: [],
-              status: 'Active',
-              loginHistory: [],
-            };
-            break;
-
-          default:
-            mockUser = {
-              id: 'dev_user_1',
-              email: credentials.email,
-              name: 'Development User',
-              role: 'Manager',
-              company: credentials.company || 'Opti Telemedia',
-              permissions: ['read', 'write'],
-              lastLogin: new Date().toISOString(),
-              username: credentials.email.split('@')[0],
-              password: '********',
-              gender: 'Other',
-              phoneNumber: '+91-0000000000',
-              address: {
-                street: 'Dev Street',
-                city: 'Dev City',
-                state: 'Maharashtra',
-                pincode: '000000'
-              },
-              officeLocation: 'Dev Office',
-              assignedUnder: [],
-              assignedRegions: ['Maharashtra'],
-              groups: [],
-              status: 'Active',
-              loginHistory: [],
-            };
-        }
-
-        const mockToken = 'dev_token_' + Date.now();
-        dispatch(loginSuccess({ user: mockUser, token: mockToken }));
-      } else {
-        // Backend mode - real authentication
-        console.log('🔄 Using real backend authentication');
-        const response = await apiService.login(credentials);
-        dispatch(loginSuccess({ user: response.user, token: response.token }));
-      }
+      // Always use real backend - mock mode is disabled
+      console.log('🔄 Using real backend authentication');
+      const response = await apiService.login(credentials);
+      dispatch(loginSuccess({ user: response.user, token: response.token }));
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || 'Login failed';
       dispatch(loginFailure(errorMessage));
