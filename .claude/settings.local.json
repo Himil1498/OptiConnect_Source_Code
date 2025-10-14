@@ -21,7 +21,8 @@
       "Bash(npx tsc:*)",
       "Bash(timeout:*)",
       "Bash(cat:*)",
-      "Bash(mysql:*)"
+      "Bash(mysql:*)",
+      "Bash(npm test)"
     ],
     "deny": [],
     "ask": []

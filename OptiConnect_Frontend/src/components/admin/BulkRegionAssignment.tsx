@@ -6,6 +6,7 @@ import { INDIAN_STATES } from '../../utils/regionMapping';
 import { logAuditEvent } from '../../services/auditService';
 import { getAllUsers, bulkAssignRegions } from '../../services/userService';
 import NotificationDialog from '../common/NotificationDialog';
+import { useTemporaryRegionMonitor } from '../../hooks/useTemporaryRegionMonitor';
 
 interface User {
   id: string;
@@ -36,6 +37,10 @@ const BulkRegionAssignment: React.FC = () => {
   });
 
   const isAdmin = user?.role === 'Admin';
+
+  // Enable real-time monitoring of temporary region expirations
+  // This hook will automatically update when temporary regions expire
+  useTemporaryRegionMonitor(30000); // Check every 30 seconds
 
   useEffect(() => {
     loadUsers();

@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { User } from '../../types/auth.types';
 import UserPermissionsDialog from './UserPermissionsDialog';
 import DeleteUserDialog from '../common/DeleteUserDialog';
+import DeleteConfirmationDialog from '../common/DeleteConfirmationDialog';
 import * as userService from '../../services/userService';
+import { useTemporaryRegionMonitor } from '../../hooks/useTemporaryRegionMonitor';
 
 // Indian States/UTs for region assignment
 const INDIAN_STATES = [
@@ -30,6 +32,13 @@ const UserManagement: React.FC = () => {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
+  
+  // Bulk delete dialog state
+  const [bulkDeleteDialog, setBulkDeleteDialog] = useState({
+    isOpen: false,
+    count: 0
+  });
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Form state for create/edit modals
   const [formData, setFormData] = useState<Partial<User>>({
@@ -134,6 +143,10 @@ const UserManagement: React.FC = () => {
     }
   ];
 
+  // Enable real-time monitoring of temporary region expirations
+  // This hook will automatically update when temporary regions expire
+  useTemporaryRegionMonitor(30000); // Check every 30 seconds
+
   // Load users from backend
   const loadUsers = async () => {
     setIsLoading(true);
@@ -141,6 +154,7 @@ const UserManagement: React.FC = () => {
     try {
       const fetchedUsers = await userService.getAllUsers();
       setUsers(fetchedUsers);
+      console.log('✅ User Management: Users reloaded', fetchedUsers.length);
     } catch (error: any) {
       console.error('Error loading users:', error);
       setLoadingError(error.message || 'Failed to load users');
@@ -358,21 +372,30 @@ const UserManagement: React.FC = () => {
   };
 
   // Bulk operations
-  const handleBulkDelete = async () => {
-    if (!window.confirm(`Are you sure you want to delete ${selectedUsers.length} users?`)) {
+  const handleBulkDeleteClick = () => {
+    if (selectedUsers.length === 0) {
+      alert('Please select users to delete');
       return;
     }
+    
+    setBulkDeleteDialog({
+      isOpen: true,
+      count: selectedUsers.length
+    });
+  };
 
-    setIsLoading(true);
+  const handleConfirmBulkDelete = async () => {
+    setIsBulkDeleting(true);
     try {
       await userService.bulkDeleteUsers(Array.from(selectedUsers));
       await loadUsers();
       setSelectedUsers([]);
+      setBulkDeleteDialog({ isOpen: false, count: 0 });
     } catch (error: any) {
       console.error('Error deleting users:', error);
       alert(`Failed to delete users: ${error.message}`);
     } finally {
-      setIsLoading(false);
+      setIsBulkDeleting(false);
     }
   };
 
@@ -547,7 +570,7 @@ const UserManagement: React.FC = () => {
                 Deactivate
               </button>
               <button
-                onClick={handleBulkDelete}
+                onClick={handleBulkDeleteClick}
                 className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg text-sm font-semibold hover:from-red-600 hover:to-red-700 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 transform hover:-translate-y-0.5"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1769,6 +1792,18 @@ const UserManagement: React.FC = () => {
           setShowDeleteDialog(false);
           setUserToDelete(null);
         }}
+      />
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        isOpen={bulkDeleteDialog.isOpen}
+        onClose={() => setBulkDeleteDialog({ isOpen: false, count: 0 })}
+        onConfirm={handleConfirmBulkDelete}
+        title="Delete Multiple Users"
+        message="Are you sure you want to delete the selected users? This action cannot be undone and will permanently remove all associated data."
+        itemCount={bulkDeleteDialog.count}
+        isLoading={isBulkDeleting}
+        type="danger"
       />
     </div>
   );

@@ -282,9 +282,53 @@ const rejectRequest = async (req, res) => {
   }
 };
 
+/**
+ * @route   DELETE /api/region-requests/:id
+ * @desc    Delete region access request (admin or own request)
+ * @access  Private
+ */
+const deleteRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role?.toLowerCase();
+
+    // Get request details
+    const [requests] = await pool.query(
+      'SELECT user_id FROM region_requests WHERE id = ?',
+      [id]
+    );
+
+    if (requests.length === 0) {
+      return res.status(404).json({ success: false, error: 'Request not found' });
+    }
+
+    const request = requests[0];
+
+    // Only admin can delete any request, or users can delete their own
+    if (userRole !== 'admin' && request.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Permission denied: Only administrators or the requester can delete this request'
+      });
+    }
+
+    // Delete the request
+    await pool.query('DELETE FROM region_requests WHERE id = ?', [id]);
+
+    console.log(`✅ Deleted region request ID: ${id} by user ${userId}`);
+
+    res.json({ success: true, message: 'Request deleted successfully' });
+  } catch (error) {
+    console.error('Delete request error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete request' });
+  }
+};
+
 module.exports = {
   getAllRequests,
   createRequest,
   approveRequest,
-  rejectRequest
+  rejectRequest,
+  deleteRequest
 };

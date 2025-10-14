@@ -8,6 +8,7 @@ import { isPointInAssignedRegion } from "../../utils/regionMapping";
 import NotificationDialog from "../common/NotificationDialog";
 import { trackToolUsage } from "../../services/analyticsService";
 import { useAppSelector } from "../../store";
+import { distanceMeasurementService } from "../../services/gisToolsService";
 
 interface DistanceMeasurementToolProps {
   map: google.maps.Map | null;
@@ -53,6 +54,7 @@ const DistanceMeasurementTool: React.FC<DistanceMeasurementToolProps> = ({
     title: "",
     message: ""
   });
+  const [saving, setSaving] = useState<boolean>(false);
 
   // Initialize click listener
   useEffect(() => {
@@ -355,7 +357,7 @@ const DistanceMeasurementTool: React.FC<DistanceMeasurementToolProps> = ({
   /**
    * Save measurement
    */
-  const handleSave = () => {
+  const handleSave = async () => {
     if (points.length < 2) {
       setNotification({
         isOpen: true,
@@ -393,32 +395,50 @@ const DistanceMeasurementTool: React.FC<DistanceMeasurementToolProps> = ({
       onSave(measurement);
     }
 
-    // Save to localStorage
-    const saved = JSON.parse(
-      localStorage.getItem("gis_distance_measurements") || "[]"
-    );
-    saved.push(measurement);
-    localStorage.setItem("gis_distance_measurements", JSON.stringify(saved));
+    // Save to database
+    setSaving(true);
+    try {
+      const savedMeasurement = await distanceMeasurementService.create({
+        measurement_name: name.trim(),
+        points: points,
+        total_distance: totalDistance,
+        unit: 'meters',
+        notes: description.trim()
+      });
 
-    // Track tool usage for analytics
-    const duration = Math.round((Date.now() - startTime) / 1000); // Convert to seconds
-    trackToolUsage({
-      toolName: 'distance-measurement',
-      userId: user?.id || 'guest',
-      userName: user?.name || 'Guest User',
-      duration
-    });
+      if (savedMeasurement) {
+        // Track tool usage for analytics
+        const duration = Math.round((Date.now() - startTime) / 1000); // Convert to seconds
+        trackToolUsage({
+          toolName: 'distance-measurement',
+          userId: user?.id || 'guest',
+          userName: user?.name || 'Guest User',
+          duration
+        });
 
-    setNotification({
-      isOpen: true,
-      type: "success",
-      title: "Success!",
-      message: "Distance measurement saved successfully!"
-    });
-    clearAll();
-    setShowSaveDialog(false);
-    setName("");
-    setDescription("");
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: "Success!",
+          message: "Distance measurement saved to database!"
+        });
+        clearAll();
+        setShowSaveDialog(false);
+        setName("");
+        setDescription("");
+      }
+    } catch (error) {
+      console.error('Error saving measurement:', error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Error",
+        message: "Failed to save measurement. Please try again."
+      });
+      return; // Don't clear if save failed
+    } finally {
+      setSaving(false);
+    }
   };
 
   /**
@@ -628,10 +648,10 @@ const DistanceMeasurementTool: React.FC<DistanceMeasurementToolProps> = ({
         </button>
         <button
           onClick={() => setShowSaveDialog(true)}
-          disabled={points.length < 2}
+          disabled={points.length < 2 || saving}
           className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Save
+          {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
 
@@ -678,9 +698,10 @@ const DistanceMeasurementTool: React.FC<DistanceMeasurementToolProps> = ({
               </button>
               <button
                 onClick={handleSave}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                disabled={saving}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save
+                {saving ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>

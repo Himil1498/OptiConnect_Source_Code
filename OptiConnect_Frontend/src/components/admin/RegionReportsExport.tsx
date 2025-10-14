@@ -8,7 +8,7 @@ import NotificationDialog from '../common/NotificationDialog';
 const RegionReportsExport: React.FC = () => {
   const { user } = useAppSelector(state => state.auth);
   const [selectedReport, setSelectedReport] = useState<ReportType>('comprehensive');
-  const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json'>('csv');
+  const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json' | 'xlsx'>('csv');
   const [notification, setNotification] = useState({
     isOpen: false,
     type: 'info' as 'success' | 'error' | 'warning' | 'info',
@@ -161,8 +161,8 @@ const RegionReportsExport: React.FC = () => {
           </h3>
         </div>
 
-        <div className="flex space-x-4">
-          <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer flex-1 transition-colors ${
+        <div className="grid grid-cols-3 gap-4">
+          <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
             selectedFormat === 'csv' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'
           }`}>
             <input
@@ -176,12 +176,31 @@ const RegionReportsExport: React.FC = () => {
             <div>
               <div className="text-sm font-medium text-gray-900 dark:text-white">CSV</div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Excel-compatible spreadsheet format
+                Comma-separated values
               </div>
             </div>
           </label>
 
-          <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer flex-1 transition-colors ${
+          <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+            selectedFormat === 'xlsx' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'
+          }`}>
+            <input
+              type="radio"
+              name="format"
+              value="xlsx"
+              checked={selectedFormat === 'xlsx'}
+              onChange={() => setSelectedFormat('xlsx')}
+              className="mr-3 text-blue-600 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <div>
+              <div className="text-sm font-medium text-gray-900 dark:text-white">XLSX</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Excel format (recommended)
+              </div>
+            </div>
+          </label>
+
+          <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors ${
             selectedFormat === 'json' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'
           }`}>
             <input
@@ -195,7 +214,7 @@ const RegionReportsExport: React.FC = () => {
             <div>
               <div className="text-sm font-medium text-gray-900 dark:text-white">JSON</div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Structured data format for API/programming use
+                Structured data format
               </div>
             </div>
           </label>

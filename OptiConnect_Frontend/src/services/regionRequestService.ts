@@ -370,33 +370,47 @@ const saveRequests = (requests: RegionAccessRequest[]): void => {
  * Delete a region request
  */
 export const deleteRegionRequest = async (requestId: string, user: User): Promise<boolean> => {
-  const requests = await getRegionRequests();
-  const index = requests.findIndex(req => req.id === requestId);
+  try {
+    // Get request details for logging before deletion
+    const requests = await getRegionRequests();
+    const request = requests.find(req => req.id === requestId);
 
-  if (index === -1) {
-    return false;
+    if (!request) {
+      throw new Error('Region request not found');
+    }
+
+    // Only admin can delete requests, or the requester can delete their own
+    if (user.role !== 'Admin' && request.userId !== user.id) {
+      throw new Error('Permission denied: Only administrators or the requester can delete this request');
+    }
+
+    // Delete from backend database
+    const response = await apiClient.delete<{
+      success: boolean;
+      message?: string;
+    }>(`/region-requests/${requestId}`);
+
+    const data = response.data;
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to delete region request');
+    }
+
+    console.log('✅ Deleted region request from database:', requestId);
+
+    // Log audit event
+    logAuditEvent(user, 'REGION_ACCESS_DENIED', `Deleted region access request`, {
+      severity: 'info',
+      details: {
+        requestId,
+        requestedRegions: request.requestedRegions,
+        requestedBy: request.userName
+      },
+      success: true
+    });
+
+    return true;
+  } catch (error: any) {
+    console.error('Error deleting region request:', error);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to delete region request');
   }
-
-  const request = requests[index];
-
-  // Only admin can delete requests, or the requester can delete their own
-  if (user.role !== 'Admin' && request.userId !== user.id) {
-    return false;
-  }
-
-  requests.splice(index, 1);
-  saveRequests(requests);
-
-  // Log audit event
-  logAuditEvent(user, 'REGION_ACCESS_DENIED', `Deleted region access request`, {
-    severity: 'info',
-    details: {
-      requestId,
-      requestedRegions: request.requestedRegions,
-      requestedBy: request.userName
-    },
-    success: true
-  });
-
-  return true;
 };

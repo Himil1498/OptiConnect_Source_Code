@@ -13,6 +13,7 @@ import {
   deleteEntries,
   checkBackendStatus
 } from "../../services/dataHubService";
+import { gisToolsService } from "../../services/gisToolsService";
 
 interface DataHubProps {
   map: google.maps.Map | null;
@@ -73,22 +74,101 @@ const DataHub: React.FC<DataHubProps> = ({ map, onClose }) => {
   }, [entries]);
 
   /**
-   * Load all data from localStorage/backend
+   * Load all data from database
    */
   const loadAllData = async () => {
     try {
-      console.log("🔄 Loading data...");
-      const allEntries = await fetchAllData();
-      console.log("✅ Total entries loaded:", allEntries.length);
+      console.log("🔄 Loading data from database...");
+
+      // Fetch all GIS data from database
+      const allData = await gisToolsService.getAllUserData({ userId: 'me' });
+
+      // Transform to DataHubEntry format
+      const allEntries: DataHubEntry[] = [];
+
+      // Distance Measurements
+      allData.distanceMeasurements.forEach((item: any) => {
+        allEntries.push({
+          id: item.id?.toString() || `dist_${Date.now()}`,
+          type: "Distance",
+          name: item.measurement_name || "Unnamed",
+          createdAt: new Date(item.created_at || Date.now()),
+          savedAt: new Date(item.created_at || Date.now()),
+          fileSize: JSON.stringify(item).length,
+          source: "Manual",
+          data: item
+        });
+      });
+
+      // Polygons
+      allData.polygonDrawings.forEach((item: any) => {
+        allEntries.push({
+          id: item.id?.toString() || `poly_${Date.now()}`,
+          type: "Polygon",
+          name: item.polygon_name || "Unnamed",
+          createdAt: new Date(item.created_at || Date.now()),
+          savedAt: new Date(item.created_at || Date.now()),
+          fileSize: JSON.stringify(item).length,
+          source: "Manual",
+          data: item
+        });
+      });
+
+      // Circles
+      allData.circleDrawings.forEach((item: any) => {
+        allEntries.push({
+          id: item.id?.toString() || `circle_${Date.now()}`,
+          type: "Circle",
+          name: item.circle_name || "Unnamed",
+          createdAt: new Date(item.created_at || Date.now()),
+          savedAt: new Date(item.created_at || Date.now()),
+          fileSize: JSON.stringify(item).length,
+          source: "Manual",
+          data: item
+        });
+      });
+
+      // Sector RF
+      allData.sectorRF.forEach((item: any) => {
+        allEntries.push({
+          id: item.id?.toString() || `sector_${Date.now()}`,
+          type: "SectorRF",
+          name: item.sector_name || "Unnamed",
+          createdAt: new Date(item.created_at || Date.now()),
+          savedAt: new Date(item.created_at || Date.now()),
+          fileSize: JSON.stringify(item).length,
+          source: "Manual",
+          data: item
+        });
+      });
+
+      // Elevation Profiles
+      allData.elevationProfiles.forEach((item: any) => {
+        allEntries.push({
+          id: item.id?.toString() || `elev_${Date.now()}`,
+          type: "Elevation",
+          name: item.profile_name || "Unnamed",
+          createdAt: new Date(item.created_at || Date.now()),
+          savedAt: new Date(item.created_at || Date.now()),
+          fileSize: JSON.stringify(item).length,
+          source: "Manual",
+          data: item
+        });
+      });
+
+      // Sort by savedAt descending
+      allEntries.sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime());
+
+      console.log("✅ Total entries loaded from database:", allEntries.length);
       console.log("📊 Entries:", allEntries);
       setEntries(allEntries);
     } catch (error) {
-      console.error("Error loading data:", error);
+      console.error("Error loading data from database:", error);
       setNotification({
         isOpen: true,
         type: "error",
         title: "Load Error",
-        message: "Failed to load data from storage"
+        message: "Failed to load data from database. Make sure backend is running."
       });
     }
   };

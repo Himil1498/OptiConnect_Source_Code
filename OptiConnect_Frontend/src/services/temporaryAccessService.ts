@@ -495,41 +495,55 @@ export const deleteTemporaryGrant = async (
   grantId: string,
   user: User
 ): Promise<boolean> => {
-  const grants = await getTemporaryAccess();
-  const index = grants.findIndex((g) => g.id === grantId);
-
-  if (index === -1) {
-    return false;
-  }
-
-  const grant = grants[index];
-
-  // Only admin can delete grants
-  if (user.role !== "Admin") {
-    return false;
-  }
-
-  grants.splice(index, 1);
-  saveGrants(grants);
-
-  // Log audit event
-  logAuditEvent(
-    user,
-    "REGION_REVOKED",
-    `Deleted temporary access grant for ${grant.userName}`,
-    {
-      severity: "warning",
-      region: grant.region,
-      details: {
-        targetUserId: grant.userId,
-        targetUserName: grant.userName,
-        grantId
-      },
-      success: true
+  try {
+    // Only admin can delete grants
+    if (user.role !== "Admin") {
+      throw new Error('Only administrators can delete temporary access grants');
     }
-  );
 
-  return true;
+    // Get grant details for logging before deletion
+    const grants = await getTemporaryAccess();
+    const grant = grants.find((g) => g.id === grantId);
+
+    if (!grant) {
+      throw new Error('Temporary access grant not found');
+    }
+
+    // Delete from backend database
+    const response = await apiClient.delete<{
+      success: boolean;
+      message?: string;
+    }>(`/temporary-access/${grantId}`);
+
+    const data = response.data;
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to delete temporary access grant');
+    }
+
+    console.log('✅ Deleted temporary access grant from database:', grantId);
+
+    // Log audit event
+    logAuditEvent(
+      user,
+      "REGION_REVOKED",
+      `Deleted temporary access grant for ${grant.userName}`,
+      {
+        severity: "warning",
+        region: grant.region,
+        details: {
+          targetUserId: grant.userId,
+          targetUserName: grant.userName,
+          grantId
+        },
+        success: true
+      }
+    );
+
+    return true;
+  } catch (error: any) {
+    console.error('Error deleting temporary access grant:', error);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to delete temporary access grant');
+  }
 };
 
 /**

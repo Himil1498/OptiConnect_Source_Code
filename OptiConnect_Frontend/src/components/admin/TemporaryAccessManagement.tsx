@@ -14,6 +14,7 @@ import { getAllUsers } from '../../services/userService';
 import { INDIAN_STATES } from '../../utils/regionMapping';
 import type { TemporaryRegionAccess, TemporaryAccessFilter } from '../../types/temporaryAccess.types';
 import NotificationDialog from '../common/NotificationDialog';
+import DeleteConfirmationDialog from '../common/DeleteConfirmationDialog';
 import {
   ClockIcon,
   UserGroupIcon,
@@ -58,6 +59,13 @@ const TemporaryAccessManagement: React.FC = () => {
   const [selectedGrant, setSelectedGrant] = useState<TemporaryRegionAccess | null>(null);
   const [newExpirationDate, setNewExpirationDate] = useState('');
   const [revokeReason, setRevokeReason] = useState('');
+  
+  // Delete dialog state
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    grant: null as TemporaryRegionAccess | null
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Notification state
   const [notification, setNotification] = useState<{
@@ -326,29 +334,33 @@ const TemporaryAccessManagement: React.FC = () => {
     }
   };
 
-  const handleDelete = async (grant: TemporaryRegionAccess) => {
-    if (!window.confirm(`Are you sure you want to delete this temporary access grant for ${grant.userName}?`)) {
-      return;
-    }
+  const handleDeleteClick = (grant: TemporaryRegionAccess) => {
+    setDeleteDialog({
+      isOpen: true,
+      grant
+    });
+  };
 
-    if (!currentUser) {
+  const handleConfirmDelete = async () => {
+    if (!deleteDialog.grant || !currentUser) {
       showNotification('error', 'Error', 'User not authenticated.');
       return;
     }
 
-    setLoading(true);
+    setIsDeleting(true);
     try {
-      const success = await deleteTemporaryGrant(grant.id, currentUser);
-      if (success) {
-        showNotification('success', 'Grant Deleted', 'Temporary access grant deleted successfully.');
-        await loadData();
-      } else {
-        showNotification('error', 'Error', 'Failed to delete temporary access grant.');
-      }
-    } catch (error) {
-      showNotification('error', 'Error', 'Failed to delete temporary access grant.');
+      await deleteTemporaryGrant(deleteDialog.grant.id, currentUser);
+      showNotification('success', 'Grant Deleted', 'Temporary access grant deleted successfully from database.');
+      setDeleteDialog({ isOpen: false, grant: null });
+      // Reload data to update table in real-time
+      await loadData();
+      console.log('✅ Table refreshed after deletion');
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to delete temporary access grant';
+      showNotification('error', 'Delete Failed', errorMessage);
+      console.error('❌ Delete failed:', error);
     } finally {
-      setLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -789,7 +801,7 @@ const TemporaryAccessManagement: React.FC = () => {
                         </>
                       )}
                       <button
-                        onClick={() => handleDelete(grant)}
+                        onClick={() => handleDeleteClick(grant)}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                         title="Delete"
                       >
@@ -897,6 +909,18 @@ const TemporaryAccessManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, grant: null })}
+        onConfirm={handleConfirmDelete}
+        title="Delete Temporary Access Grant"
+        message="Are you sure you want to delete this temporary access grant? This action cannot be undone."
+        itemName={deleteDialog.grant ? `${deleteDialog.grant.userName} - ${deleteDialog.grant.region}` : ''}
+        isLoading={isDeleting}
+        type="danger"
+      />
 
       {/* Notification Dialog */}
       <NotificationDialog

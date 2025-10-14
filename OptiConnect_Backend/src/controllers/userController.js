@@ -86,6 +86,11 @@ const getAllUsers = async (req, res) => {
         [user.id]
       );
       user.assignedRegions = regions.map(r => r.name);
+      
+      // Debug logging for region assignments
+      if (regions.length > 0) {
+        console.log(`📍 User ${user.username} (ID: ${user.id}) has ${regions.length} regions assigned`);
+      }
 
       // Fetch active temporary access with time remaining
       const [tempAccess] = await pool.query(

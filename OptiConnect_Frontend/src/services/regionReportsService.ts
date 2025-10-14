@@ -19,7 +19,7 @@ export type ReportType =
 
 export interface ReportOptions {
   type: ReportType;
-  format: 'csv' | 'json';
+  format: 'csv' | 'json' | 'xlsx';
   dateFrom?: Date;
   dateTo?: Date;
   regions?: string[];
@@ -29,7 +29,7 @@ export interface ReportOptions {
 /**
  * Generate region usage report
  */
-const generateRegionUsageReport = (format: 'csv' | 'json'): string => {
+const generateRegionUsageReport = (format: 'csv' | 'json' | 'xlsx'): string => {
   const stats = getAllRegionUsageStats();
 
   if (format === 'json') {
@@ -68,7 +68,7 @@ const generateRegionUsageReport = (format: 'csv' | 'json'): string => {
 /**
  * Generate user activity report
  */
-const generateUserActivityReport = (format: 'csv' | 'json'): string => {
+const generateUserActivityReport = (format: 'csv' | 'json' | 'xlsx'): string => {
   const activity = getUserRegionActivity();
 
   if (format === 'json') {
@@ -105,7 +105,7 @@ const generateUserActivityReport = (format: 'csv' | 'json'): string => {
 /**
  * Generate access denials report
  */
-const generateAccessDenialsReport = (format: 'csv' | 'json'): string => {
+const generateAccessDenialsReport = (format: 'csv' | 'json' | 'xlsx'): string => {
   const stats = getAllRegionUsageStats();
   const denialsData = stats
     .filter(s => s.deniedAccesses > 0)
@@ -135,7 +135,7 @@ const generateAccessDenialsReport = (format: 'csv' | 'json'): string => {
 /**
  * Generate temporary access report
  */
-const generateTemporaryAccessReport = async (format: 'csv' | 'json'): Promise<string> => {
+const generateTemporaryAccessReport = async (format: 'csv' | 'json' | 'xlsx'): Promise<string> => {
   const grants = await getTemporaryAccess();
 
   if (format === 'json') {
@@ -178,7 +178,7 @@ const generateTemporaryAccessReport = async (format: 'csv' | 'json'): Promise<st
 /**
  * Generate region requests report
  */
-const generateRegionRequestsReport = async (format: 'csv' | 'json'): Promise<string> => {
+const generateRegionRequestsReport = async (format: 'csv' | 'json' | 'xlsx'): Promise<string> => {
   const requests = await getRegionRequests();
 
   if (format === 'json') {
@@ -221,7 +221,7 @@ const generateRegionRequestsReport = async (format: 'csv' | 'json'): Promise<str
 /**
  * Generate zone assignments report
  */
-const generateZoneAssignmentsReport = (format: 'csv' | 'json'): string => {
+const generateZoneAssignmentsReport = (format: 'csv' | 'json' | 'xlsx'): string => {
   const zones = getRegionZones();
   const assignments = getZoneAssignments();
 
@@ -265,7 +265,7 @@ const generateZoneAssignmentsReport = (format: 'csv' | 'json'): string => {
 /**
  * Generate comprehensive report (all data combined)
  */
-const generateComprehensiveReport = async (format: 'csv' | 'json'): Promise<string> => {
+const generateComprehensiveReport = async (format: 'csv' | 'json' | 'xlsx'): Promise<string> => {
   const summary = getAnalyticsSummary();
   const auditStats = getAuditLogStats();
   const tempAccessStats = await getTemporaryAccessStats();
@@ -355,23 +355,99 @@ export const generateReport = async (options: ReportOptions): Promise<string> =>
 };
 
 /**
- * Download report as file
+ * Download report as file from backend API
  */
 export const downloadReport = async (options: ReportOptions, filename?: string): Promise<void> => {
-  const content = await generateReport(options);
-  const extension = options.format === 'json' ? 'json' : 'csv';
-  const mimeType = options.format === 'json' ? 'application/json' : 'text/csv';
+  try {
+    const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === 'true';
+    
+    if (USE_BACKEND) {
+      // Use backend API for reports
+      const axios = (await import('axios')).default;
+      const BACKEND_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const apiClient = axios.create({
+        baseURL: BACKEND_API_URL,
+        timeout: 30000, // 30s timeout for reports
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      // Add authorization header
+      const token = sessionStorage.getItem('opti_connect_token');
+      if (token) {
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
+      
+      // Convert report type to backend endpoint format (replace _ with -)
+      const endpoint = options.type.replace(/_/g, '-');
+      
+      // Make API call with format query parameter
+      const response = await apiClient.get(`/reports/${endpoint}`, {
+        params: { format: options.format },
+        responseType: options.format === 'json' ? 'json' : 'blob'
+      });
+      
+      // Handle JSON response
+      if (options.format === 'json') {
+        const jsonStr = JSON.stringify(response.data, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || `${options.type}_report_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      
+      // Handle CSV/XLSX blob response
+      const blob = response.data as Blob;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // Get filename from Content-Disposition header if available
+      const contentDisposition = response.headers['content-disposition'];
+      let downloadFilename = filename;
+      
+      if (!downloadFilename && contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (filenameMatch) {
+          downloadFilename = filenameMatch[1];
+        }
+      }
+      
+      if (!downloadFilename) {
+        const extension = options.format === 'xlsx' ? 'xlsx' : 'csv';
+        downloadFilename = `${options.type}_report_${new Date().toISOString().split('T')[0]}.${extension}`;
+      }
+      
+      a.download = downloadFilename;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+    } else {
+      // Fallback to old localStorage-based reports
+      const content = await generateReport(options);
+      const extension = options.format === 'json' ? 'json' : options.format === 'xlsx' ? 'xlsx' : 'csv';
+      const mimeType = options.format === 'json' ? 'application/json' : 
+                      options.format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 
+                      'text/csv';
 
-  const defaultFilename = `${options.type}_report_${new Date().toISOString().split('T')[0]}.${extension}`;
-  const finalFilename = filename || defaultFilename;
+      const defaultFilename = `${options.type}_report_${new Date().toISOString().split('T')[0]}.${extension}`;
+      const finalFilename = filename || defaultFilename;
 
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = finalFilename;
-  a.click();
-  URL.revokeObjectURL(url);
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = finalFilename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  } catch (error: any) {
+    console.error('Download report error:', error);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to download report');
+  }
 };
 
 /**

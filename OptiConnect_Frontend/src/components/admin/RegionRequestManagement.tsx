@@ -10,6 +10,7 @@ import {
 } from '../../services/regionRequestService';
 import type { RegionAccessRequest, RegionRequestStatus } from '../../types/regionRequest.types';
 import NotificationDialog from '../common/NotificationDialog';
+import DeleteConfirmationDialog from '../common/DeleteConfirmationDialog';
 
 const RegionRequestManagement: React.FC = () => {
   const { user } = useAppSelector(state => state.auth);
@@ -19,6 +20,13 @@ const RegionRequestManagement: React.FC = () => {
   const [reviewNotes, setReviewNotes] = useState('');
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);
+  
+  // Delete dialog state
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    request: null as RegionAccessRequest | null
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
   const [notification, setNotification] = useState<{
     isOpen: boolean;
     type: 'success' | 'error' | 'warning' | 'info';
@@ -113,17 +121,30 @@ const RegionRequestManagement: React.FC = () => {
     }
   };
 
-  const handleDelete = async (request: RegionAccessRequest) => {
-    if (!user) return;
+  const handleDeleteClick = (request: RegionAccessRequest) => {
+    setDeleteDialog({
+      isOpen: true,
+      request
+    });
+  };
 
-    if (window.confirm(`Are you sure you want to delete this request from ${request.userName}?`)) {
-      const result = await deleteRegionRequest(request.id, user);
-      if (result) {
-        showNotification('success', 'Request Deleted', 'The request has been deleted successfully.');
-        await loadRequests();
-      } else {
-        showNotification('error', 'Delete Failed', 'Failed to delete the request.');
-      }
+  const handleConfirmDelete = async () => {
+    if (!user || !deleteDialog.request) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteRegionRequest(deleteDialog.request.id, user);
+      showNotification('success', 'Request Deleted', 'Region request deleted successfully from database.');
+      setDeleteDialog({ isOpen: false, request: null });
+      // Reload data to update table in real-time
+      await loadRequests();
+      console.log('✅ Table refreshed after deletion');
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to delete the request';
+      showNotification('error', 'Delete Failed', errorMessage);
+      console.error('❌ Delete failed:', error);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -568,7 +589,7 @@ const RegionRequestManagement: React.FC = () => {
                         </div>
                       ) : (
                         <button
-                          onClick={() => handleDelete(request)}
+                          onClick={() => handleDeleteClick(request)}
                           className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg hover:from-gray-600 hover:to-gray-700 shadow-sm hover:shadow-md transition-all duration-200 font-semibold text-xs"
                           aria-label={`Delete request from ${request.userName}`}
                         >
@@ -675,6 +696,18 @@ const RegionRequestManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, request: null })}
+        onConfirm={handleConfirmDelete}
+        title="Delete Region Request"
+        message="Are you sure you want to delete this region access request? This action cannot be undone."
+        itemName={deleteDialog.request ? `${deleteDialog.request.userName} - ${deleteDialog.request.requestedRegions.join(', ')}` : ''}
+        isLoading={isDeleting}
+        type="danger"
+      />
 
       {/* Notification */}
       <NotificationDialog

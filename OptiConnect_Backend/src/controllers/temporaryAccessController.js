@@ -1,4 +1,6 @@
 const { pool } = require('../config/database');
+const { cleanupExpiredTemporaryAccess } = require('../utils/temporaryAccessCleanup');
+const { logAudit } = require('./auditController');
 
 /**
  * Calculate human-readable time remaining
@@ -162,20 +164,6 @@ const grantTemporaryAccess = async (req, res) => {
 
     const regionId = regions[0].id;
 
-    // Check if user already has permanent access
-    const [existingAccess] = await pool.query(
-      'SELECT id FROM user_regions WHERE user_id = ? AND region_id = ?',
-      [user_id, regionId]
-    );
-
-    if (existingAccess.length > 0) {
-      console.log(`⚠️ User ${user_id} already has permanent access to region ${regionId}`);
-      return res.status(400).json({
-        success: false,
-        error: 'User already has permanent access to this region. Remove permanent access first to grant temporary access.'
-      });
-    }
-
     // Check if active temporary access already exists
     const [existingTemp] = await pool.query(
       `SELECT id FROM temporary_access
@@ -233,6 +221,34 @@ const grantTemporaryAccess = async (req, res) => {
 
     console.log(`✅ Added region access to user_regions table for temporary access`);
 
+    // Log audit event for granting temporary access
+    try {
+      await logAudit(
+        granterId,
+        `Granted temporary access to ${region_name} for ${users[0].full_name}`,
+        'REGION_ASSIGNED',
+        null, // resource_id as null, region name in details
+        {
+          severity: 'info',
+          resource_name: region_name,
+          target_user_id: user_id,
+          target_user_name: users[0].full_name,
+          target_user_email: users[0].email,
+          access_level: access_level || 'read',
+          expires_at: expires_at,
+          reason: reason,
+          grant_id: result.insertId,
+          granted_by_role: granterRole,
+          success: true
+        },
+        req
+      );
+      console.log('✅ Audit log created for temporary access grant');
+    } catch (auditError) {
+      console.error('Failed to create audit log for grant:', auditError);
+      // Continue even if audit log fails
+    }
+
     res.status(201).json({
       success: true,
       grant: {
@@ -258,7 +274,7 @@ const grantTemporaryAccess = async (req, res) => {
 
 /**
  * @route   DELETE /api/temporary-access/:id
- * @desc    Revoke temporary access (manager+)
+ * @desc    Delete/Revoke temporary access (manager+)
  * @access  Private (Manager/Admin)
  */
 const revokeTemporaryAccess = async (req, res) => {
@@ -270,13 +286,19 @@ const revokeTemporaryAccess = async (req, res) => {
     if (userRole !== 'admin' && userRole !== 'manager') {
       return res.status(403).json({
         success: false,
-        error: 'Only admin or manager can revoke temporary access'
+        error: 'Only admin or manager can delete temporary access'
       });
     }
 
-    // Check if access exists
+    // Get the grant details before deleting (with user and region info for audit log)
     const [access] = await pool.query(
-      'SELECT id, revoked_at FROM temporary_access WHERE id = ?',
+      `SELECT ta.user_id, ta.resource_id, ta.revoked_at, ta.reason as grant_reason,
+              u.username, u.full_name, u.email,
+              r.name as region_name
+       FROM temporary_access ta
+       INNER JOIN users u ON ta.user_id = u.id
+       INNER JOIN regions r ON ta.resource_id = r.id
+       WHERE ta.id = ?`,
       [id]
     );
 
@@ -284,51 +306,70 @@ const revokeTemporaryAccess = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Temporary access not found' });
     }
 
-    if (access[0].revoked_at !== null) {
-      return res.status(400).json({
-        success: false,
-        error: 'Access already revoked'
-      });
-    }
+    const grantUserId = access[0].user_id;
+    const grantResourceId = access[0].resource_id;
+    const targetUser = {
+      id: access[0].user_id,
+      username: access[0].username,
+      full_name: access[0].full_name,
+      email: access[0].email
+    };
+    const regionName = access[0].region_name;
 
-    // Get the grant details before revoking
-    const [grantDetails] = await pool.query(
-      'SELECT user_id, resource_id FROM temporary_access WHERE id = ?',
-      [id]
-    );
+    // Delete the temporary access record from database
+    await pool.query('DELETE FROM temporary_access WHERE id = ?', [id]);
+    console.log(`✅ Deleted temporary access ID: ${id} from database`);
+    console.log(`   Revoked by: ${req.user.username || userId} (ID: ${userId})`);
+    console.log(`   Target user: ${targetUser.full_name} (ID: ${grantUserId})`);
+    console.log(`   Region: ${regionName}`);
 
-    await pool.query(
-      'UPDATE temporary_access SET revoked_at = UTC_TIMESTAMP(), revoked_by = ? WHERE id = ?',
-      [userId, id]
-    );
-
-    // Remove from user_regions table (only if no permanent access exists)
-    if (grantDetails.length > 0) {
-      const grantUserId = grantDetails[0].user_id;
-      const grantResourceId = grantDetails[0].resource_id;
-
-      // Check if there's any other active temporary access for this region
-      const [otherTemp] = await pool.query(
-        `SELECT id FROM temporary_access
-         WHERE user_id = ? AND resource_id = ? AND id != ?
-         AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()`,
-        [grantUserId, grantResourceId, id]
+    // Log audit event for revocation
+    try {
+      await logAudit(
+        userId,
+        `Revoked temporary access to ${regionName} for ${targetUser.full_name}`,
+        'REGION_REVOKED',
+        null, // resource_id as null, region name in details
+        {
+          severity: 'warning',
+          resource_name: regionName,
+          target_user_id: grantUserId,
+          target_username: targetUser.username,
+          target_user_name: targetUser.full_name,
+          grant_id: id,
+          revoked_by_role: userRole,
+          success: true
+        },
+        req
       );
-
-      // If no other temporary access, remove from user_regions
-      if (otherTemp.length === 0) {
-        await pool.query(
-          'DELETE FROM user_regions WHERE user_id = ? AND region_id = ? AND assigned_by = ?',
-          [grantUserId, grantResourceId, userId]
-        );
-        console.log(`✅ Removed temporary region access from user_regions`);
-      }
+      console.log('✅ Audit log created for temporary access revocation');
+    } catch (auditError) {
+      console.error('Failed to create audit log for revocation:', auditError);
+      // Continue even if audit log fails
     }
 
-    res.json({ success: true, message: 'Temporary access revoked successfully' });
+    // Remove from user_regions table (only if no other active temporary access exists)
+    // Check if there's any other active temporary access for this region
+    const [otherTemp] = await pool.query(
+      `SELECT id FROM temporary_access
+       WHERE user_id = ? AND resource_id = ? AND resource_type = 'region'
+       AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()`,
+      [grantUserId, grantResourceId]
+    );
+
+    // If no other temporary access, remove from user_regions
+    if (otherTemp.length === 0) {
+      await pool.query(
+        'DELETE FROM user_regions WHERE user_id = ? AND region_id = ?',
+        [grantUserId, grantResourceId]
+      );
+      console.log(`✅ Removed temporary region access from user_regions`);
+    }
+
+    res.json({ success: true, message: 'Temporary access deleted successfully' });
   } catch (error) {
-    console.error('Revoke temporary access error:', error);
-    res.status(500).json({ success: false, error: 'Failed to revoke temporary access' });
+    console.error('Delete temporary access error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete temporary access' });
   }
 };
 
@@ -378,9 +419,129 @@ const getMyTemporaryAccess = async (req, res) => {
   }
 };
 
+/**
+ * @route   GET /api/temporary-access/current-regions
+ * @desc    Get user's currently valid regions (permanent + non-expired temporary)
+ * @access  Private
+ */
+const getCurrentValidRegions = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Step 1: Get all region IDs that have EVER had temporary access
+    const [allTempRegions] = await pool.query(
+      `SELECT DISTINCT resource_id FROM temporary_access
+       WHERE user_id = ? AND resource_type = 'region'`,
+      [userId]
+    );
+    const everTempRegionIds = allTempRegions.map(ta => ta.resource_id);
+
+    // Step 2: Get all active temporary access (currently valid)
+    const [activeTempAccess] = await pool.query(
+      `SELECT resource_id, expires_at,
+              TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), expires_at) as seconds_remaining
+       FROM temporary_access
+       WHERE user_id = ? AND resource_type = 'region'
+       AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()`,
+      [userId]
+    );
+    const activeTempRegionIds = activeTempAccess.map(ta => ta.resource_id);
+    const tempRegionMap = new Map(activeTempAccess.map(ta => [
+      ta.resource_id,
+      { expires_at: ta.expires_at, seconds_remaining: ta.seconds_remaining }
+    ]));
+
+    // Step 3: Get ALL regions from user_regions
+    const query = `
+      SELECT DISTINCT
+        r.id,
+        r.name,
+        r.code,
+        r.type,
+        ur.access_level
+      FROM regions r
+      INNER JOIN user_regions ur ON r.id = ur.region_id
+      WHERE ur.user_id = ?
+        AND r.is_active = true
+      ORDER BY r.name ASC
+    `;
+
+    const [regions] = await pool.query(query, [userId]);
+
+    // Step 4: Filter and categorize regions
+    const regionsWithDetails = regions
+      .filter(region => {
+        // If this region was EVER temporary
+        if (everTempRegionIds.includes(region.id)) {
+          // Only include if it has ACTIVE temporary access now
+          return activeTempRegionIds.includes(region.id);
+        }
+        // If never had temporary access, it's permanent - always include
+        return true;
+      })
+      .map(region => {
+        const isTemporary = activeTempRegionIds.includes(region.id);
+        const tempData = tempRegionMap.get(region.id);
+        
+        return {
+          id: region.id,
+          name: region.name,
+          code: region.code,
+          type: region.type,
+          access_level: region.access_level,
+          is_temporary: isTemporary,
+          expires_at: isTemporary && tempData ? tempData.expires_at : null,
+          time_remaining: isTemporary && tempData
+            ? calculateTimeRemaining(tempData.seconds_remaining)
+            : null
+        };
+      });
+
+    res.json({
+      success: true,
+      regions: regionsWithDetails,
+      count: regionsWithDetails.length
+    });
+  } catch (error) {
+    console.error('Get current valid regions error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get current regions' });
+  }
+};
+
+/**
+ * @route   POST /api/temporary-access/cleanup
+ * @desc    Manually trigger cleanup of expired temporary access (Admin only)
+ * @access  Private (Admin)
+ */
+const cleanupExpired = async (req, res) => {
+  try {
+    const userRole = req.user.role?.toLowerCase();
+
+    if (userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only admin can trigger cleanup'
+      });
+    }
+
+    const result = await cleanupExpiredTemporaryAccess();
+
+    res.json({
+      success: true,
+      message: `Cleanup complete: Removed ${result.cleanedCount} expired temporary access grant(s)`,
+      ...result
+    });
+  } catch (error) {
+    console.error('Manual cleanup error:', error);
+    res.status(500).json({ success: false, error: 'Failed to cleanup expired access' });
+  }
+};
+
 module.exports = {
   getAllTemporaryAccess,
   grantTemporaryAccess,
   revokeTemporaryAccess,
-  getMyTemporaryAccess
+  getMyTemporaryAccess,
+  getCurrentValidRegions,
+  cleanupExpired
 };

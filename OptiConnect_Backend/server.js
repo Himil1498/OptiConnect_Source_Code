@@ -7,6 +7,7 @@ require("dotenv").config();
 
 const { testConnection } = require("./src/config/database");
 const { errorHandler, notFound } = require("./src/middleware/errorHandler");
+const { startCleanupScheduler } = require("./src/utils/temporaryAccessCleanup");
 
 // Initialize Express app
 const app = express();
@@ -155,6 +156,10 @@ try {
   const permissionRoutes = require("./src/routes/permission.routes");
   app.use("/api/permissions", permissionRoutes);
 
+  // Reports routes
+  const reportsRoutes = require("./src/routes/reports.routes");
+  app.use("/api/reports", reportsRoutes);
+
   console.log("✅ All routes loaded successfully");
 } catch (error) {
   console.warn("⚠️ Some routes not loaded yet:", error.message);
@@ -167,7 +172,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Server configuration
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5005;
 
 // Start server
 const startServer = async () => {
@@ -181,6 +186,9 @@ const startServer = async () => {
       );
       process.exit(1);
     }
+
+    // Start temporary access cleanup scheduler
+    startCleanupScheduler();
 
     // Start Express server
     app.listen(PORT, () => {

@@ -166,6 +166,17 @@ function transformBackendUser(backendUser: BackendUser): User {
     }
   })) || [];
 
+  // Extract active temporary regions (not expired, not revoked)
+  const temporaryRegions = temporaryAccess
+    .filter((ta: any) => {
+      const now = new Date();
+      return ta.expiresAt > now && !ta.timeRemaining.expired;
+    })
+    .map((ta: any) => ta.region);
+
+  // Combine permanent and temporary regions (remove duplicates)
+  const allRegions = Array.from(new Set([...regions, ...temporaryRegions]));
+
   return {
     id: `OCGID${String(backendUser.id).padStart(3, '0')}`, // Format numeric ID as OCGID001
     username: backendUser.username,
@@ -184,7 +195,7 @@ function transformBackendUser(backendUser: BackendUser): User {
     department: backendUser.department || '', // Map department field
     assignedUnder: [], // Not directly mapped, would need additional API
     role: mapBackendRole(backendUser.role),
-    assignedRegions: regions,
+    assignedRegions: allRegions, // Include both permanent and temporary regions
     temporaryAccess,
     groups: [],
     status: backendUser.is_active ? 'Active' : 'Inactive',
@@ -223,7 +234,13 @@ function transformFrontendUser(frontendUser: Partial<User>): any {
  */
 export async function getAllUsers(): Promise<User[]> {
   try {
-    const response = await apiClient.get<BackendUsersListResponse>('/users');
+    // Fetch with large limit to get all users (not just 10)
+    const response = await apiClient.get<BackendUsersListResponse>('/users', {
+      params: {
+        limit: 1000, // Fetch up to 1000 users
+        page: 1
+      }
+    });
 
     if (!response.data.success) {
       throw new Error(response.data.message || 'Failed to fetch users');

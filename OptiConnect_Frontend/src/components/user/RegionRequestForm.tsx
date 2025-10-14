@@ -42,8 +42,9 @@ const RegionRequestForm: React.FC<RegionRequestFormProps> = ({ onSubmit }) => {
 
     try {
       const token = sessionStorage.getItem('opti_connect_token');
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
 
-      const response = await fetch('http://localhost:5000/api/region-requests', {
+      const response = await fetch(`${API_URL}/region-requests`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

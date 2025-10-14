@@ -5,6 +5,7 @@ import { isPointInAssignedRegion } from "../../utils/regionMapping";
 import NotificationDialog from "../common/NotificationDialog";
 import { trackToolUsage } from "../../services/analyticsService";
 import { useAppSelector } from "../../store";
+import { sectorRFService } from "../../services/gisToolsService";
 
 interface SectorRFToolProps {
   map: google.maps.Map | null;
@@ -70,6 +71,7 @@ const SectorRFTool: React.FC<SectorRFToolProps> = ({
     title: '',
     message: ''
   });
+  const [saving, setSaving] = useState<boolean>(false);
 
   // Initialize click listener for center placement
   useEffect(() => {
@@ -326,7 +328,7 @@ const SectorRFTool: React.FC<SectorRFToolProps> = ({
   /**
    * Save sector
    */
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!center) {
       setNotification({
         isOpen: true,
@@ -376,35 +378,62 @@ const SectorRFTool: React.FC<SectorRFToolProps> = ({
       onSave(sectorData);
     }
 
-    // Save to localStorage
-    const saved = JSON.parse(localStorage.getItem("gis_sector_rf") || "[]");
-    saved.push(sectorData);
-    localStorage.setItem("gis_sector_rf", JSON.stringify(saved));
+    // Save to database
+    setSaving(true);
+    try {
+      const savedSector = await sectorRFService.create({
+        sector_name: name.trim(),
+        tower_lat: center.lat,
+        tower_lng: center.lng,
+        azimuth: azimuth,
+        beamwidth: beamwidth,
+        radius: radius,
+        frequency: frequency ? parseFloat(frequency) : undefined,
+        antenna_height: antennaHeight ? parseFloat(antennaHeight) : undefined,
+        fill_color: color,
+        stroke_color: color,
+        opacity: fillOpacity,
+        notes: description.trim()
+      });
 
-    // Track tool usage for analytics
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    trackToolUsage({
-      toolName: 'sector-rf',
-      userId: user?.id || 'guest',
-      userName: user?.name || 'Guest User',
-      duration
-    });
+      if (savedSector) {
+        // Track tool usage for analytics
+        const duration = Math.round((Date.now() - startTime) / 1000);
+        trackToolUsage({
+          toolName: 'sector-rf',
+          userId: user?.id || 'guest',
+          userName: user?.name || 'Guest User',
+          duration
+        });
 
-    setNotification({
-      isOpen: true,
-      type: 'success',
-      title: 'Success!',
-      message: 'Sector saved successfully!'
-    });
+        setNotification({
+          isOpen: true,
+          type: 'success',
+          title: 'Success!',
+          message: 'Sector saved to database!'
+        });
 
-    clearSector();
-    setShowSaveDialog(false);
-    setName("");
-    setDescription("");
-    setTowerName("");
-    setSectorName("");
-    setFrequency("");
-    setAntennaHeight("");
+        clearSector();
+        setShowSaveDialog(false);
+        setName("");
+        setDescription("");
+        setTowerName("");
+        setSectorName("");
+        setFrequency("");
+        setAntennaHeight("");
+      }
+    } catch (error) {
+      console.error('Error saving sector:', error);
+      setNotification({
+        isOpen: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to save sector. Please try again.'
+      });
+      return; // Don't clear if save failed
+    } finally {
+      setSaving(false);
+    }
   };
 
   /**
@@ -736,9 +765,10 @@ const SectorRFTool: React.FC<SectorRFToolProps> = ({
           <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-600">
             <button
               onClick={() => setShowSaveDialog(true)}
-              className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
+              disabled={saving}
+              className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Save Sector
+              {saving ? 'Saving...' : 'Save Sector'}
             </button>
             <button
               onClick={clearSector}
@@ -790,9 +820,10 @@ const SectorRFTool: React.FC<SectorRFToolProps> = ({
             <div className="flex gap-2 mt-6">
               <button
                 onClick={handleSave}
-                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save
+                {saving ? 'Saving...' : 'Save'}
               </button>
               <button
                 onClick={() => setShowSaveDialog(false)}

@@ -18,11 +18,15 @@ import LoginPage from './pages/LoginPage';
 import EmailVerificationPage from './pages/EmailVerificationPage';
 import ResendVerificationPage from './pages/ResendVerificationPage';
 import RegionRequestForm from './components/user/RegionRequestForm';
+import GISDataHub from './pages/GISDataHub';
 
 // Context Providers
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
+
+// Custom Hooks
+import { useTemporaryRegionMonitor } from './hooks/useTemporaryRegionMonitor';
 
 // Utils and Configuration
 import { config, validateEnvironment, debugLog } from './utils/environment';
@@ -48,6 +52,14 @@ const ProtectedRoute: React.FC<{
   }
 
   return <>{children}</>;
+};
+
+// Component to handle temporary region monitoring
+const TemporaryRegionMonitor: React.FC = () => {
+  // Check every 30 seconds (adjust as needed)
+  // For testing, you can use a shorter interval like 10000 (10 seconds)
+  useTemporaryRegionMonitor(30000);
+  return null;
 };
 
 const App: React.FC = () => {
@@ -102,6 +114,8 @@ const App: React.FC = () => {
               <AuthProvider>
                 <Router>
                   <div className="App min-h-screen bg-gray-50 dark:bg-gray-900">
+                    {/* Monitor temporary region access and auto-expire in real-time */}
+                    <TemporaryRegionMonitor />
                     <NavigationBar />
                     <Routes>
                     <Route path="/login" element={<LoginPage />} />
@@ -163,6 +177,16 @@ const App: React.FC = () => {
                         <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
                           <main className="pt-16">
                             <AnalyticsPage />
+                          </main>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/gis-data-hub"
+                      element={
+                        <ProtectedRoute allowedRoles={["Admin", "Manager", "Technician", "User"]}>
+                          <main className="pt-16">
+                            <GISDataHub />
                           </main>
                         </ProtectedRoute>
                       }

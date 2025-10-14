@@ -5,6 +5,7 @@ import { isPointInAssignedRegion } from "../../utils/regionMapping";
 import NotificationDialog from "../common/NotificationDialog";
 import { trackToolUsage } from "../../services/analyticsService";
 import { useAppSelector } from "../../store";
+import { circleDrawingService } from "../../services/gisToolsService";
 
 interface CircleDrawingToolProps {
   map: google.maps.Map | null;
@@ -51,6 +52,7 @@ const CircleDrawingTool: React.FC<CircleDrawingToolProps> = ({
     title: '',
     message: ''
   });
+  const [saving, setSaving] = useState<boolean>(false);
 
   // Initialize click listener for center placement
   useEffect(() => {
@@ -237,7 +239,7 @@ const CircleDrawingTool: React.FC<CircleDrawingToolProps> = ({
   /**
    * Save circle
    */
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!center) {
       setNotification({
         isOpen: true,
@@ -277,30 +279,53 @@ const CircleDrawingTool: React.FC<CircleDrawingToolProps> = ({
       onSave(circleData);
     }
 
-    // Save to localStorage
-    const saved = JSON.parse(localStorage.getItem("gis_circles") || "[]");
-    saved.push(circleData);
-    localStorage.setItem("gis_circles", JSON.stringify(saved));
+    // Save to database
+    setSaving(true);
+    try {
+      const savedCircle = await circleDrawingService.create({
+        circle_name: name.trim(),
+        center_lat: center.lat,
+        center_lng: center.lng,
+        radius: radius,
+        fill_color: color,
+        stroke_color: color,
+        opacity: fillOpacity,
+        notes: description.trim()
+      });
 
-    // Track tool usage for analytics
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    trackToolUsage({
-      toolName: 'circle-drawing',
-      userId: user?.id || 'guest',
-      userName: user?.name || 'Guest User',
-      duration
-    });
+      if (savedCircle) {
+        // Track tool usage for analytics
+        const duration = Math.round((Date.now() - startTime) / 1000);
+        trackToolUsage({
+          toolName: 'circle-drawing',
+          userId: user?.id || 'guest',
+          userName: user?.name || 'Guest User',
+          duration
+        });
 
-    setNotification({
-      isOpen: true,
-      type: 'success',
-      title: 'Success!',
-      message: 'Circle saved successfully!'
-    });
-    clearCircle();
-    setShowSaveDialog(false);
-    setName("");
-    setDescription("");
+        setNotification({
+          isOpen: true,
+          type: 'success',
+          title: 'Success!',
+          message: 'Circle saved to database!'
+        });
+        clearCircle();
+        setShowSaveDialog(false);
+        setName("");
+        setDescription("");
+      }
+    } catch (error) {
+      console.error('Error saving circle:', error);
+      setNotification({
+        isOpen: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to save circle. Please try again.'
+      });
+      return; // Don't clear if save failed
+    } finally {
+      setSaving(false);
+    }
   };
 
   /**
@@ -514,10 +539,10 @@ const CircleDrawingTool: React.FC<CircleDrawingToolProps> = ({
         </button>
         <button
           onClick={() => setShowSaveDialog(true)}
-          disabled={!center}
+          disabled={!center || saving}
           className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Save
+          {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
 
@@ -564,9 +589,10 @@ const CircleDrawingTool: React.FC<CircleDrawingToolProps> = ({
               </button>
               <button
                 onClick={handleSave}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                disabled={saving}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save
+                {saving ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>

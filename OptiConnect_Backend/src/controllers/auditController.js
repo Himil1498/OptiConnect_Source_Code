@@ -135,6 +135,24 @@ const createAuditLog = async (req, res) => {
       });
     }
 
+    // Parse resource_id - if it's not a number, store it in details and set resource_id to null
+    let finalResourceId = null;
+    let finalDetails = details || {};
+    
+    if (resource_id !== null && resource_id !== undefined) {
+      const resourceIdNum = parseInt(resource_id);
+      if (!isNaN(resourceIdNum) && resourceIdNum.toString() === resource_id.toString()) {
+        // It's a valid integer
+        finalResourceId = resourceIdNum;
+      } else {
+        // It's a string (like region name), store in details
+        finalDetails = {
+          ...finalDetails,
+          resource_name: resource_id
+        };
+      }
+    }
+
     const [result] = await pool.query(
       `INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip_address, user_agent)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -142,8 +160,8 @@ const createAuditLog = async (req, res) => {
         userId,
         action,
         resource_type || null,
-        resource_id || null,
-        details ? JSON.stringify(details) : null,
+        finalResourceId,
+        Object.keys(finalDetails).length > 0 ? JSON.stringify(finalDetails) : null,
         ip_address || req.ip,
         user_agent || req.get('User-Agent')
       ]
@@ -197,6 +215,35 @@ const deleteAuditLog = async (req, res) => {
 };
 
 /**
+ * @route   DELETE /api/audit/logs
+ * @desc    Clear all audit logs (Admin only)
+ * @access  Private (Admin)
+ */
+const clearAllAuditLogs = async (req, res) => {
+  try {
+    const userRole = req.user.role;
+
+    if (userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only admin can clear audit logs'
+      });
+    }
+
+    const [result] = await pool.query('DELETE FROM audit_logs');
+
+    res.json({
+      success: true,
+      message: `Cleared ${result.affectedRows} audit log(s) successfully`,
+      deletedCount: result.affectedRows
+    });
+  } catch (error) {
+    console.error('Clear audit logs error:', error);
+    res.status(500).json({ success: false, error: 'Failed to clear audit logs' });
+  }
+};
+
+/**
  * Helper function to log audit events (can be called from other controllers)
  */
 const logAudit = async (userId, action, resourceType, resourceId, details, req) => {
@@ -225,5 +272,6 @@ module.exports = {
   getUserActivity,
   createAuditLog,
   deleteAuditLog,
+  clearAllAuditLogs,
   logAudit
 };

@@ -21,6 +21,7 @@ import NotificationDialog from "../common/NotificationDialog";
 import { trackToolUsage } from "../../services/analyticsService";
 import { useAppSelector } from "../../store";
 import PageContainer from "../common/PageContainer";
+import { elevationProfileService } from "../../services/gisToolsService";
 
 // Register Chart.js components
 ChartJS.register(
@@ -81,6 +82,7 @@ const ElevationProfileTool: React.FC<ElevationProfileToolProps> = ({
     title: "",
     message: ""
   });
+  const [saving, setSaving] = useState<boolean>(false);
 
   // Initialize Elevation Service
   useEffect(() => {
@@ -367,7 +369,7 @@ const ElevationProfileTool: React.FC<ElevationProfileToolProps> = ({
   /**
    * Save elevation profile
    */
-  const handleSave = () => {
+  const handleSave = async () => {
     if (points.length < 2 || elevationData.length === 0) {
       setNotification({
         isOpen: true,
@@ -412,32 +414,53 @@ const ElevationProfileTool: React.FC<ElevationProfileToolProps> = ({
       onSave(profile);
     }
 
-    // Save to localStorage
-    const saved = JSON.parse(
-      localStorage.getItem("gis_elevation_profiles") || "[]"
-    );
-    saved.push(profile);
-    localStorage.setItem("gis_elevation_profiles", JSON.stringify(saved));
+    // Save to database
+    setSaving(true);
+    try {
+      const savedProfile = await elevationProfileService.create({
+        profile_name: name.trim(),
+        start_point: points[0],
+        end_point: points[1],
+        elevation_data: elevationData,
+        total_distance: totalDistance,
+        max_elevation: highPoint ? highPoint.elevation : 0,
+        min_elevation: lowPoint ? lowPoint.elevation : 0,
+        notes: description.trim()
+      });
 
-    // Track tool usage for analytics
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    trackToolUsage({
-      toolName: "elevation-profile",
-      userId: user?.id || "guest",
-      userName: user?.name || "Guest User",
-      duration
-    });
+      if (savedProfile) {
+        // Track tool usage for analytics
+        const duration = Math.round((Date.now() - startTime) / 1000);
+        trackToolUsage({
+          toolName: "elevation-profile",
+          userId: user?.id || "guest",
+          userName: user?.name || "Guest User",
+          duration
+        });
 
-    setNotification({
-      isOpen: true,
-      type: "success",
-      title: "Success!",
-      message: "Elevation profile saved successfully!"
-    });
-    clearAll();
-    setShowSaveDialog(false);
-    setName("");
-    setDescription("");
+        setNotification({
+          isOpen: true,
+          type: "success",
+          title: "Success!",
+          message: "Elevation profile saved to database!"
+        });
+        clearAll();
+        setShowSaveDialog(false);
+        setName("");
+        setDescription("");
+      }
+    } catch (error) {
+      console.error('Error saving elevation profile:', error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Error",
+        message: "Failed to save elevation profile. Please try again."
+      });
+      return; // Don't clear if save failed
+    } finally {
+      setSaving(false);
+    }
   };
 
   /**
@@ -722,10 +745,10 @@ const ElevationProfileTool: React.FC<ElevationProfileToolProps> = ({
           </button>
           <button
             onClick={() => setShowSaveDialog(true)}
-            disabled={points.length < 2 || elevationData.length === 0}
+            disabled={points.length < 2 || elevationData.length === 0 || saving}
             className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
@@ -815,9 +838,10 @@ const ElevationProfileTool: React.FC<ElevationProfileToolProps> = ({
               </button>
               <button
                 onClick={handleSave}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                disabled={saving}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save
+                {saving ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
