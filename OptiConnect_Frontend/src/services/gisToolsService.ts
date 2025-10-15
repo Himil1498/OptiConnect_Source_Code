@@ -134,21 +134,53 @@ class DistanceMeasurementService {
     try {
       const params: Record<string, any> = {};
 
-      if (filters?.userId && filters.userId !== 'me' && filters.userId !== 'all') {
-        params.userId = filters.userId;
+      // Handle user filtering - send explicit filter parameter to backend
+      if (filters?.userId !== undefined) {
+        if (filters.userId === 'all') {
+          params.filter = 'all'; // Backend will return ALL users' data
+          console.log('🔍 Distance: Fetching ALL users data (filter=all)');
+        } else if (filters.userId === 'me') {
+          params.filter = 'me'; // Backend will return only current user's data
+          console.log('🔍 Distance: Fetching MY data only (filter=me)');
+        } else {
+          params.filter = 'user'; // Backend will filter by specific userId
+          params.userId = filters.userId;
+          console.log('🔍 Distance: Fetching data for userId:', filters.userId, '(filter=user)');
+        }
       }
+
       if (filters?.regionId) params.regionId = filters.regionId;
       if (filters?.page) params.page = filters.page;
       if (filters?.limit) params.limit = filters.limit;
 
-      const response = await apiService.get<{ success: boolean; measurements: DistanceMeasurement[] }>(
+      console.log('📤 Distance API request URL:', '/measurements/distance');
+      console.log('📤 Distance API request params:', params);
+
+      const response = await apiService.get<{ success: boolean; measurements: any[] }>(
         '/measurements/distance',
         { params }
       );
 
-      return response.data.measurements || [];
-    } catch (error) {
-      console.error('Error fetching distance measurements:', error);
+      const raw = response.data.measurements || [];
+      // Normalize fields from backend (parse JSON strings)
+      const measurements: DistanceMeasurement[] = raw.map((m: any) => ({
+        ...m,
+        points: typeof m.points === 'string' ? JSON.parse(m.points) : m.points,
+        total_distance: Number(m.total_distance),
+      }));
+
+      console.log('📥 Distance API response:', {
+        count: measurements.length,
+        firstItem: measurements[0] || null
+      });
+
+      return measurements;
+    } catch (error: any) {
+      console.error('❌ Error fetching distance measurements:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       return [];
     }
   }
@@ -226,17 +258,41 @@ class PolygonDrawingService {
     try {
       const params: Record<string, any> = {};
 
-      if (filters?.userId && filters.userId !== 'me' && filters.userId !== 'all') {
-        params.userId = filters.userId;
+      // Handle user filtering - send explicit filter parameter to backend
+      if (filters?.userId !== undefined) {
+        if (filters.userId === 'all') {
+          params.filter = 'all';
+          console.log('🔍 Polygon: Fetching ALL users data (filter=all)');
+        } else if (filters.userId === 'me') {
+          params.filter = 'me';
+          console.log('🔍 Polygon: Fetching MY data only (filter=me)');
+        } else {
+          params.filter = 'user';
+          params.userId = filters.userId;
+          console.log('🔍 Polygon: Fetching data for userId:', filters.userId, '(filter=user)');
+        }
       }
+
       if (filters?.regionId) params.regionId = filters.regionId;
 
-      const response = await apiService.get<{ success: boolean; polygons: PolygonDrawing[] }>(
+      console.log('📤 Polygon API request params:', params);
+
+      const response = await apiService.get<{ success: boolean; polygons: any[] }>(
         '/drawings/polygon',
         { params }
       );
 
-      return response.data.polygons || [];
+      const raw = response.data.polygons || [];
+      const polygons: PolygonDrawing[] = raw.map((p: any) => ({
+        ...p,
+        coordinates: typeof p.coordinates === 'string' ? JSON.parse(p.coordinates) : p.coordinates,
+        area: p.area !== null && p.area !== undefined ? Number(p.area) : undefined,
+        perimeter: p.perimeter !== null && p.perimeter !== undefined ? Number(p.perimeter) : undefined,
+      }));
+
+      console.log('📥 Polygon API response count:', polygons.length);
+
+      return polygons;
     } catch (error) {
       console.error('Error fetching polygon drawings:', error);
       return [];
@@ -308,17 +364,41 @@ class CircleDrawingService {
     try {
       const params: Record<string, any> = {};
 
-      if (filters?.userId && filters.userId !== 'me' && filters.userId !== 'all') {
-        params.userId = filters.userId;
+      // Handle user filtering - send explicit filter parameter to backend
+      if (filters?.userId !== undefined) {
+        if (filters.userId === 'all') {
+          params.filter = 'all';
+          console.log('🔍 Circle: Fetching ALL users data (filter=all)');
+        } else if (filters.userId === 'me') {
+          params.filter = 'me';
+          console.log('🔍 Circle: Fetching MY data only (filter=me)');
+        } else {
+          params.filter = 'user';
+          params.userId = filters.userId;
+          console.log('🔍 Circle: Fetching data for userId:', filters.userId, '(filter=user)');
+        }
       }
+
       if (filters?.regionId) params.regionId = filters.regionId;
 
-      const response = await apiService.get<{ success: boolean; circles: CircleDrawing[] }>(
+      console.log('📤 Circle API request params:', params);
+
+      const response = await apiService.get<{ success: boolean; circles: any[] }>(
         '/drawings/circle',
         { params }
       );
 
-      return response.data.circles || [];
+      const raw = response.data.circles || [];
+      const circles: CircleDrawing[] = raw.map((c: any) => ({
+        ...c,
+        center_lat: Number(c.center_lat),
+        center_lng: Number(c.center_lng),
+        radius: Number(c.radius),
+      }));
+
+      console.log('📥 Circle API response count:', circles.length);
+
+      return circles;
     } catch (error) {
       console.error('Error fetching circle drawings:', error);
       return [];
@@ -390,17 +470,44 @@ class SectorRFService {
     try {
       const params: Record<string, any> = {};
 
-      if (filters?.userId && filters.userId !== 'me' && filters.userId !== 'all') {
-        params.userId = filters.userId;
+      // Handle user filtering - send explicit filter parameter to backend
+      if (filters?.userId !== undefined) {
+        if (filters.userId === 'all') {
+          params.filter = 'all';
+          console.log('🔍 SectorRF: Fetching ALL users data (filter=all)');
+        } else if (filters.userId === 'me') {
+          params.filter = 'me';
+          console.log('🔍 SectorRF: Fetching MY data only (filter=me)');
+        } else {
+          params.filter = 'user';
+          params.userId = filters.userId;
+          console.log('🔍 SectorRF: Fetching data for userId:', filters.userId, '(filter=user)');
+        }
       }
+
       if (filters?.regionId) params.regionId = filters.regionId;
 
-      const response = await apiService.get<{ success: boolean; sectors: SectorRF[] }>(
+      console.log('📤 SectorRF API request params:', params);
+
+      const response = await apiService.get<{ success: boolean; sectors: any[] }>(
         '/rf/sectors',
         { params }
       );
 
-      return response.data.sectors || [];
+      const raw = response.data.sectors || [];
+      const sectors: SectorRF[] = raw.map((s: any) => ({
+        ...s,
+        tower_lat: Number(s.tower_lat),
+        tower_lng: Number(s.tower_lng),
+        azimuth: Number(s.azimuth),
+        beamwidth: Number(s.beamwidth),
+        radius: Number(s.radius),
+        frequency: s.frequency !== null && s.frequency !== undefined ? Number(s.frequency) : s.frequency,
+      }));
+
+      console.log('📥 SectorRF API response count:', sectors.length);
+
+      return sectors;
     } catch (error) {
       console.error('Error fetching RF sectors:', error);
       return [];
@@ -488,17 +595,47 @@ class ElevationProfileService {
     try {
       const params: Record<string, any> = {};
 
-      if (filters?.userId && filters.userId !== 'me' && filters.userId !== 'all') {
-        params.userId = filters.userId;
+      // Handle user filtering - send explicit filter parameter to backend
+      if (filters?.userId !== undefined) {
+        if (filters.userId === 'all') {
+          params.filter = 'all';
+          console.log('🔍 Elevation: Fetching ALL users data (filter=all)');
+        } else if (filters.userId === 'me') {
+          params.filter = 'me';
+          console.log('🔍 Elevation: Fetching MY data only (filter=me)');
+        } else {
+          params.filter = 'user';
+          params.userId = filters.userId;
+          console.log('🔍 Elevation: Fetching data for userId:', filters.userId, '(filter=user)');
+        }
       }
+
       if (filters?.regionId) params.regionId = filters.regionId;
 
-      const response = await apiService.get<{ success: boolean; profiles: ElevationProfile[] }>(
+      console.log('📤 Elevation API request params:', params);
+
+      const response = await apiService.get<{ success: boolean; profiles: any[] }>(
         '/elevation',
         { params }
       );
 
-      return response.data.profiles || [];
+      const raw = response.data.profiles || [];
+      const profiles: ElevationProfile[] = raw.map((p: any) => ({
+        ...p,
+        start_point: typeof p.start_point === 'string' ? JSON.parse(p.start_point) : p.start_point,
+        end_point: typeof p.end_point === 'string' ? JSON.parse(p.end_point) : p.end_point,
+        elevation_data: typeof p.elevation_data === 'string' ? JSON.parse(p.elevation_data) : p.elevation_data,
+        total_distance: Number(p.total_distance),
+        max_elevation: Number(p.max_elevation),
+        min_elevation: Number(p.min_elevation),
+      }));
+
+      console.log('📥 Elevation API response:', {
+        count: profiles.length,
+        sample: profiles[0] || null
+      });
+
+      return profiles;
     } catch (error) {
       console.error('Error fetching elevation profiles:', error);
       return [];
@@ -519,8 +656,15 @@ class ElevationProfileService {
 
   async create(data: Partial<ElevationProfile>): Promise<ElevationProfile | null> {
     try {
+      console.log('📤 Creating elevation profile:', {
+        profile_name: data.profile_name,
+        total_distance: data.total_distance,
+        max_elevation: data.max_elevation,
+        min_elevation: data.min_elevation
+      });
+
       const response = await apiService.post<{ success: boolean; profile: ElevationProfile }>(
-        '/elevation',
+        '/elevation/profiles', // Try alternate endpoint path
         {
           profile_name: data.profile_name,
           start_point: data.start_point,
@@ -534,10 +678,44 @@ class ElevationProfileService {
           is_saved: true
         }
       );
+
+      console.log('✅ Elevation profile created successfully:', response.data);
       return response.data.profile || null;
-    } catch (error) {
-      console.error('Error creating elevation profile:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('❌ Error creating elevation profile:', {
+        status: error.response?.status,
+        message: error.response?.data?.message || error.message,
+        url: error.config?.url
+      });
+
+      // If 404, try fallback endpoint
+      if (error.response?.status === 404) {
+        try {
+          console.log('🔄 Trying fallback endpoint: /elevation');
+          const fallbackResponse = await apiService.post<{ success: boolean; profile: ElevationProfile }>(
+            '/elevation',
+            {
+              profile_name: data.profile_name,
+              start_point: data.start_point,
+              end_point: data.end_point,
+              elevation_data: data.elevation_data,
+              total_distance: data.total_distance,
+              max_elevation: data.max_elevation,
+              min_elevation: data.min_elevation,
+              region_id: data.region_id,
+              notes: data.notes,
+              is_saved: true
+            }
+          );
+          console.log('✅ Elevation profile created via fallback endpoint');
+          return fallbackResponse.data.profile || null;
+        } catch (fallbackError: any) {
+          console.error('❌ Fallback endpoint also failed:', fallbackError.response?.data || fallbackError.message);
+          throw new Error(`Backend endpoint not found. Please ensure the elevation profile API is properly configured. Error: ${fallbackError.response?.data?.message || fallbackError.message}`);
+        }
+      }
+
+      throw new Error(error.response?.data?.message || 'Failed to save elevation profile to database');
     }
   }
 
@@ -595,6 +773,115 @@ class GISToolsService {
       };
     } catch (error) {
       console.error('Error fetching all user GIS data:', error);
+      return {
+        distanceMeasurements: [],
+        polygonDrawings: [],
+        circleDrawings: [],
+        sectorRF: [],
+        elevationProfiles: [],
+        total: 0
+      };
+    }
+  }
+
+  /**
+   * Aggregated fetch via /datahub/all
+   * Returns the same structure as getAllUserData but in a single request.
+   */
+  async getAllAggregated(filters?: GISToolsFilters) {
+    try {
+      const params: Record<string, any> = {};
+      if (filters?.userId !== undefined) {
+        if (filters.userId === 'all') {
+          params.filter = 'all';
+        } else if (filters.userId === 'me') {
+          // no explicit filter needed; backend defaults to current user
+        } else {
+          params.filter = 'user';
+          params.userId = filters.userId;
+        }
+      }
+      if (filters?.regionId) params.regionId = filters.regionId;
+
+      const resp = await apiService.get<{ success: boolean; data: any[] }>(
+        '/datahub/all',
+        { params }
+      );
+
+      const items = resp.data.data || [];
+
+      const distanceMeasurements: DistanceMeasurement[] = [];
+      const polygonDrawings: PolygonDrawing[] = [];
+      const circleDrawings: CircleDrawing[] = [];
+      const sectorRF: SectorRF[] = [];
+      const elevationProfiles: ElevationProfile[] = [];
+
+      items.forEach((item: any) => {
+        const type = item.type || item.Type || '';
+        switch (type) {
+          case 'Distance':
+            distanceMeasurements.push({
+              ...item,
+              points: typeof item.points === 'string' ? JSON.parse(item.points) : item.points,
+              total_distance: Number(item.total_distance),
+            });
+            break;
+          case 'Polygon':
+            polygonDrawings.push({
+              ...item,
+              coordinates: typeof item.coordinates === 'string' ? JSON.parse(item.coordinates) : item.coordinates,
+              area: item.area !== null && item.area !== undefined ? Number(item.area) : undefined,
+              perimeter: item.perimeter !== null && item.perimeter !== undefined ? Number(item.perimeter) : undefined,
+            });
+            break;
+          case 'Circle':
+            circleDrawings.push({
+              ...item,
+              center_lat: Number(item.center_lat),
+              center_lng: Number(item.center_lng),
+              radius: Number(item.radius),
+            });
+            break;
+          case 'SectorRF':
+            sectorRF.push({
+              ...item,
+              tower_lat: Number(item.tower_lat),
+              tower_lng: Number(item.tower_lng),
+              azimuth: Number(item.azimuth),
+              beamwidth: Number(item.beamwidth),
+              radius: Number(item.radius),
+              frequency: item.frequency !== null && item.frequency !== undefined ? Number(item.frequency) : item.frequency,
+            });
+            break;
+          case 'Elevation':
+            elevationProfiles.push({
+              ...item,
+              start_point: typeof item.start_point === 'string' ? JSON.parse(item.start_point) : item.start_point,
+              end_point: typeof item.end_point === 'string' ? JSON.parse(item.end_point) : item.end_point,
+              elevation_data: typeof item.elevation_data === 'string' ? JSON.parse(item.elevation_data) : item.elevation_data,
+              total_distance: Number(item.total_distance),
+              max_elevation: Number(item.max_elevation),
+              min_elevation: Number(item.min_elevation),
+            });
+            break;
+          case 'Infrastructure':
+            // Not displayed on current Data Hub page sections, but keep mapping in case needed
+            break;
+          default:
+            break;
+        }
+      });
+
+      return {
+        distanceMeasurements,
+        polygonDrawings,
+        circleDrawings,
+        sectorRF,
+        elevationProfiles,
+        total: distanceMeasurements.length + polygonDrawings.length + circleDrawings.length + sectorRF.length + elevationProfiles.length
+      };
+    } catch (error) {
+      console.error('Error fetching aggregated GIS data:', error);
       return {
         distanceMeasurements: [],
         polygonDrawings: [],

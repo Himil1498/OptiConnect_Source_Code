@@ -1,5 +1,6 @@
 const { pool } = require('../config/database');
 const { hashPassword } = require('../utils/bcrypt');
+const { logAudit } = require('./auditController');
 
 /**
  * Helper function to calculate time remaining
@@ -299,6 +300,15 @@ const createUser = async (req, res) => {
       [userId]
     );
 
+    // Log audit
+    await logAudit(createdBy, 'CREATE', 'user', userId, {
+      username,
+      email,
+      full_name,
+      role: role || 'viewer',
+      assignedRegions: assignedRegions || []
+    }, req);
+
     res.status(201).json({
       success: true,
       user: newUser[0]
@@ -493,6 +503,12 @@ const updateUser = async (req, res) => {
       [id]
     );
 
+    // Log audit
+    await logAudit(req.user.id, 'UPDATE', 'user', id, {
+      updated_fields: { username, full_name, email, gender, role, phone, department, office_location, street, city, state, pincode },
+      assignedRegions: assignedRegions || []
+    }, req);
+
     res.json({
       success: true,
       message: 'User updated successfully',
@@ -518,7 +534,23 @@ const deleteUser = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Cannot delete yourself' });
     }
 
+    // Get user details before deletion for audit log
+    const [users] = await pool.query(
+      'SELECT username, email, full_name, role FROM users WHERE id = ?',
+      [id]
+    );
+
     await pool.query('DELETE FROM users WHERE id = ?', [id]);
+
+    // Log audit
+    if (users.length > 0) {
+      await logAudit(req.user.id, 'DELETE', 'user', id, {
+        username: users[0].username,
+        email: users[0].email,
+        full_name: users[0].full_name,
+        role: users[0].role
+      }, req);
+    }
 
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
@@ -537,6 +569,12 @@ const activateUser = async (req, res) => {
     const { id } = req.params;
 
     await pool.query('UPDATE users SET is_active = true WHERE id = ?', [id]);
+
+    // Log audit
+    await logAudit(req.user.id, 'ACTIVATE', 'user', id, {
+      action: 'activate',
+      is_active: true
+    }, req);
 
     res.json({ success: true, message: 'User activated successfully' });
   } catch (error) {
@@ -560,6 +598,12 @@ const deactivateUser = async (req, res) => {
     }
 
     await pool.query('UPDATE users SET is_active = false WHERE id = ?', [id]);
+
+    // Log audit
+    await logAudit(req.user.id, 'DEACTIVATE', 'user', id, {
+      action: 'deactivate',
+      is_active: false
+    }, req);
 
     res.json({ success: true, message: 'User deactivated successfully' });
   } catch (error) {
@@ -666,6 +710,13 @@ const bulkDeleteUsers = async (req, res) => {
       user_ids
     );
 
+    // Log audit
+    await logAudit(req.user.id, 'BULK_DELETE', 'user', null, {
+      action: 'bulk_delete',
+      user_ids,
+      count: result.affectedRows
+    }, req);
+
     res.json({
       success: true,
       count: result.affectedRows,
@@ -674,6 +725,55 @@ const bulkDeleteUsers = async (req, res) => {
   } catch (error) {
     console.error('Bulk delete users error:', error);
     res.status(500).json({ success: false, error: 'Failed to bulk delete users' });
+  }
+};
+
+/**
+ * @route   PATCH /api/users/bulk-status
+ * @desc    Bulk update user status (activate/deactivate multiple users)
+ * @access  Private (Admin)
+ */
+const bulkUpdateStatus = async (req, res) => {
+  try {
+    const { user_ids, is_active } = req.body;
+
+    if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'User IDs array required' });
+    }
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'is_active must be a boolean' });
+    }
+
+    // Don't allow deactivating self
+    if (!is_active && user_ids.includes(req.user.id)) {
+      return res.status(400).json({ success: false, error: 'Cannot deactivate yourself' });
+    }
+
+    // Update user status
+    const placeholders = user_ids.map(() => '?').join(',');
+    const [result] = await pool.query(
+      `UPDATE users SET is_active = ? WHERE id IN (${placeholders})`,
+      [is_active, ...user_ids]
+    );
+
+    // Log audit
+    const action = is_active ? 'activated' : 'deactivated';
+    await logAudit(req.user.id, 'BULK_STATUS_UPDATE', 'user', null, {
+      action: `bulk_${action}`,
+      user_ids,
+      is_active,
+      count: result.affectedRows
+    }, req);
+
+    res.json({
+      success: true,
+      count: result.affectedRows,
+      message: `${result.affectedRows} user(s) ${action} successfully`
+    });
+  } catch (error) {
+    console.error('Bulk update status error:', error);
+    res.status(500).json({ success: false, error: 'Failed to bulk update status' });
   }
 };
 
@@ -770,5 +870,6 @@ module.exports = {
   assignRegion,
   unassignRegion,
   bulkDeleteUsers,
+  bulkUpdateStatus,
   bulkAssignRegions
 };

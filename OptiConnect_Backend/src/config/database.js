@@ -26,10 +26,10 @@ const testConnection = async () => {
     // Check timezone settings (optional - don't fail if this errors)
     try {
       const [tzResult] = await connection.query('SELECT @@session.time_zone as tz');
-      const [timeResult] = await connection.query('SELECT NOW() as server_time, UTC_TIMESTAMP() as utc_timestamp');
+      const [timeResult] = await connection.query('SELECT NOW() as server_time, UTC_TIMESTAMP() as utc_time');
       console.log('🕐 MySQL Timezone:', tzResult[0].tz);
       console.log('🕐 Server Time:', timeResult[0].server_time);
-      console.log('🕐 UTC Time:', timeResult[0].utc_timestamp);
+      console.log('🕐 UTC Time:', timeResult[0].utc_time);
     } catch (tzError) {
       console.log('⚠️  Could not check timezone settings:', tzError.message);
     }

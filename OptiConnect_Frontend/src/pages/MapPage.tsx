@@ -12,6 +12,7 @@ import MapToolbar from "../components/map/MapToolbar";
 import CoordinatesDisplay from "../components/map/CoordinatesDisplay";
 import PageContainer from "../components/common/PageContainer";
 import MapSettings from "../components/map/MapSettings";
+import ViewOnMapDetails from "../components/map/ViewOnMapDetails";
 import { fetchAllData } from "../services/dataHubService";
 import type { DataHubEntry } from "../types/gisTools.types";
 import { createOverlaysFromData, setOverlaysVisibility, type LayerOverlay } from "../utils/layerVisualization";
@@ -37,6 +38,15 @@ const MapPage: React.FC = () => {
     dimWhenToolActive: true,
     dimmedOpacity: 0.2
   });
+  const [viewOnMapOverlays, setViewOnMapOverlays] = useState<{
+    overlays: any[];
+    type: string;
+    data?: any;
+  } | null>(null);
+  const [show360View, setShow360View] = useState(false);
+  const [show360ViewPosition, setShow360ViewPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [showElevationGraph, setShowElevationGraph] = useState(false);
+  const [elevationGraphData, setElevationGraphData] = useState<any>(null);
   const [layersState, setLayersState] = useState({
     Distance: {
       visible: false,
@@ -114,6 +124,57 @@ const MapPage: React.FC = () => {
     }
   }, []);
 
+  // Check for "View on Map" data from GIS Data Hub
+  useEffect(() => {
+    const viewOnMapDataStr = sessionStorage.getItem('viewOnMapData');
+    if (viewOnMapDataStr && mapInstance) {
+      try {
+        const viewOnMapData = JSON.parse(viewOnMapDataStr);
+        console.log('🗺️ View on Map data received:', viewOnMapData);
+
+        const { data, type } = viewOnMapData;
+
+        // Clear sessionStorage after reading
+        sessionStorage.removeItem('viewOnMapData');
+
+        // Create overlays based on type
+        const createdOverlays = createViewOnMapOverlays(data, type, mapInstance);
+        setViewOnMapOverlays({ overlays: createdOverlays, type, data });
+
+        // Zoom to fit the bounds
+        fitBoundsToOverlays(createdOverlays, mapInstance);
+
+        // Show elevation graph if viewing elevation profile
+        if (type === 'elevation' && data.elevation_data) {
+          setElevationGraphData(data);
+          setShowElevationGraph(true);
+        }
+
+        // Show notification
+        dispatch(
+          addNotification({
+            type: 'success',
+            title: 'View on Map',
+            message: `Displaying ${type} on map`,
+            autoClose: true,
+            duration: 3000
+          })
+        );
+      } catch (error) {
+        console.error('Error processing View on Map data:', error);
+        dispatch(
+          addNotification({
+            type: 'error',
+            title: 'View on Map Error',
+            message: 'Failed to display item on map',
+            autoClose: true,
+            duration: 3000
+          })
+        );
+      }
+    }
+  }, [mapInstance, dispatch]);
+
   // Load data for layer counts
   useEffect(() => {
     loadLayerData();
@@ -126,6 +187,377 @@ const MapPage: React.FC = () => {
       loadLayerData();
     }
   }, [mapInstance]);
+
+  /**
+   * Create overlays for "View on Map" feature
+   */
+  const createViewOnMapOverlays = (data: any, type: string, map: google.maps.Map) => {
+    const overlays: any[] = [];
+
+    switch (type) {
+      case 'distance': {
+        // Create polyline
+        const points = data.points || [];
+        if (points.length > 0) {
+          const polyline = new google.maps.Polyline({
+            path: points,
+            geodesic: true,
+            strokeColor: '#FF0000',
+            strokeOpacity: 1.0,
+            strokeWeight: 4,
+            map: map,
+            clickable: true // Make it clickable
+          });
+          overlays.push(polyline);
+
+          // Add markers for start and end points
+          const startMarker = new google.maps.Marker({
+            position: points[0],
+            map: map,
+            label: { text: 'A', color: 'white', fontWeight: 'bold' },
+            title: 'Start Point'
+          });
+          overlays.push(startMarker);
+
+          const endMarker = new google.maps.Marker({
+            position: points[points.length - 1],
+            map: map,
+            label: { text: 'B', color: 'white', fontWeight: 'bold' },
+            title: 'End Point'
+          });
+          overlays.push(endMarker);
+
+          // Add info window with distance and 360° view button
+          const midPoint = points[Math.floor(points.length / 2)];
+          const infoWindow = new google.maps.InfoWindow({
+            content: `<div style="padding: 12px;">
+              <strong style="font-size: 14px;">${data.measurement_name || 'Distance Measurement'}</strong><br/>
+              <div style="margin: 8px 0;">
+                <strong>Distance:</strong> ${formatDistance(data.total_distance)}<br/>
+                ${data.notes ? `<em style="color: #666;">${data.notes}</em><br/>` : ''}
+              </div>
+              <button
+                id="view360Button"
+                style="
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                  border: none;
+                  padding: 8px 16px;
+                  border-radius: 6px;
+                  cursor: pointer;
+                  font-weight: 600;
+                  font-size: 13px;
+                  width: 100%;
+                  margin-top: 4px;
+                  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                  transition: transform 0.2s;
+                "
+                onmouseover="this.style.transform='scale(1.05)'"
+                onmouseout="this.style.transform='scale(1)'"
+                onclick="window.open360View(${midPoint.lat}, ${midPoint.lng})"
+              >
+                🌐 View 360° Street View
+              </button>
+            </div>`,
+            position: midPoint
+          });
+
+          // Add global function to open 360 view
+          (window as any).open360View = (lat: number, lng: number) => {
+            setShow360ViewPosition({ lat, lng });
+            setShow360View(true);
+          };
+
+          infoWindow.open(map);
+          overlays.push(infoWindow);
+
+          // Make polyline clickable to reopen info window
+          polyline.addListener('click', () => {
+            infoWindow.open(map);
+          });
+
+          // Make markers clickable to reopen info window
+          startMarker.addListener('click', () => {
+            infoWindow.open(map);
+          });
+          endMarker.addListener('click', () => {
+            infoWindow.open(map);
+          });
+        }
+        break;
+      }
+
+      case 'elevation': {
+        // Create polyline for elevation profile
+        const startPoint = data.start_point;
+        const endPoint = data.end_point;
+        if (startPoint && endPoint) {
+          const polyline = new google.maps.Polyline({
+            path: [startPoint, endPoint],
+            geodesic: true,
+            strokeColor: '#8B4513',
+            strokeOpacity: 1.0,
+            strokeWeight: 4,
+            map: map
+          });
+          overlays.push(polyline);
+
+          // Add markers
+          const startMarker = new google.maps.Marker({
+            position: startPoint,
+            map: map,
+            label: { text: 'A', color: 'white', fontWeight: 'bold' },
+            title: 'Start Point'
+          });
+          overlays.push(startMarker);
+
+          const endMarker = new google.maps.Marker({
+            position: endPoint,
+            map: map,
+            label: { text: 'B', color: 'white', fontWeight: 'bold' },
+            title: 'End Point'
+          });
+          overlays.push(endMarker);
+
+          // Add info window with elevation data
+          const infoWindow = new google.maps.InfoWindow({
+            content: `<div style="padding: 8px;">
+              <strong>${data.profile_name || 'Elevation Profile'}</strong><br/>
+              <strong>Distance:</strong> ${formatDistance(data.total_distance)}<br/>
+              <strong>Max Elevation:</strong> ${data.max_elevation}m<br/>
+              <strong>Min Elevation:</strong> ${data.min_elevation}m
+            </div>`,
+            position: {
+              lat: (startPoint.lat + endPoint.lat) / 2,
+              lng: (startPoint.lng + endPoint.lng) / 2
+            }
+          });
+          infoWindow.open(map);
+          overlays.push(infoWindow);
+        }
+        break;
+      }
+
+      case 'polygon': {
+        // Create polygon
+        const coordinates = data.coordinates || [];
+        if (coordinates.length > 0) {
+          const polygon = new google.maps.Polygon({
+            paths: coordinates,
+            strokeColor: data.stroke_color || '#000000',
+            strokeOpacity: 1.0,
+            strokeWeight: 2,
+            fillColor: data.fill_color || '#FF0000',
+            fillOpacity: data.opacity || 0.35,
+            map: map
+          });
+          overlays.push(polygon);
+
+          // Add info window
+          const bounds = new google.maps.LatLngBounds();
+          coordinates.forEach((coord: any) => bounds.extend(coord));
+          const center = bounds.getCenter();
+
+          const infoWindow = new google.maps.InfoWindow({
+            content: `<div style="padding: 8px;">
+              <strong>${data.polygon_name || 'Polygon'}</strong><br/>
+              ${data.area ? `<strong>Area:</strong> ${formatArea(data.area)}<br/>` : ''}
+              ${data.notes ? `<em>${data.notes}</em>` : ''}
+            </div>`,
+            position: center
+          });
+          infoWindow.open(map);
+          overlays.push(infoWindow);
+        }
+        break;
+      }
+
+      case 'circle': {
+        // Create circle
+        const center = { lat: Number(data.center_lat), lng: Number(data.center_lng) };
+        const radiusInMeters = Number(data.radius);
+
+        console.log('⭕ Creating circle:', {
+          center,
+          radius: radiusInMeters,
+          strokeColor: data.stroke_color,
+          fillColor: data.fill_color,
+          opacity: data.opacity
+        });
+
+        // Create the ACTUAL circle shape - this was missing visibility
+        const circle = new google.maps.Circle({
+          center: center,
+          radius: radiusInMeters,
+          strokeColor: data.stroke_color || '#4285F4',
+          strokeOpacity: 1.0,
+          strokeWeight: 3,
+          fillColor: data.fill_color || '#4285F4',
+          fillOpacity: Number(data.opacity) || 0.4,
+          map: map,
+          zIndex: 2,
+          clickable: true,
+          editable: false
+        });
+        overlays.push(circle);
+
+        console.log('✅ Circle created and added to map');
+
+        // Add center marker with custom icon for better visibility
+        const marker = new google.maps.Marker({
+          position: center,
+          map: map,
+          title: data.circle_name || 'Circle',
+          zIndex: 10, // Higher z-index to ensure it's above the circle
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#4CAF50',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
+          },
+          label: {
+            text: '⭕',
+            color: '#ffffff',
+            fontSize: '16px',
+            fontWeight: 'bold'
+          }
+        });
+        overlays.push(marker);
+
+        // Add info window
+        const infoWindow = new google.maps.InfoWindow({
+          content: `<div style="padding: 8px;">
+            <strong>${data.circle_name || 'Circle'}</strong><br/>
+            <strong>Center:</strong> ${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}<br/>
+            <strong>Radius:</strong> ${formatDistance(radiusInMeters)}<br/>
+            ${data.notes ? `<em>${data.notes}</em>` : ''}
+          </div>`,
+          position: center
+        });
+        infoWindow.open(map);
+        overlays.push(infoWindow);
+        break;
+      }
+
+      case 'sector': {
+        // Create RF sector
+        const center = { lat: Number(data.tower_lat), lng: Number(data.tower_lng) };
+        const azimuth = data.azimuth;
+        const beamwidth = data.beamwidth;
+        const radius = data.radius;
+
+        // Calculate sector path
+        const sectorPath: google.maps.LatLngLiteral[] = [center];
+        const startAngle = azimuth - beamwidth / 2;
+        const endAngle = azimuth + beamwidth / 2;
+
+        for (let angle = startAngle; angle <= endAngle; angle += 1) {
+          const point = google.maps.geometry.spherical.computeOffset(
+            new google.maps.LatLng(center.lat, center.lng),
+            radius,
+            angle
+          );
+          sectorPath.push({ lat: point.lat(), lng: point.lng() });
+        }
+        sectorPath.push(center);
+
+        const polygon = new google.maps.Polygon({
+          paths: sectorPath,
+          strokeColor: data.stroke_color || '#FF6B6B',
+          strokeOpacity: 1.0,
+          strokeWeight: 2,
+          fillColor: data.fill_color || '#FF6B6B',
+          fillOpacity: data.opacity || 0.35,
+          map: map
+        });
+        overlays.push(polygon);
+
+        // Add tower marker
+        const marker = new google.maps.Marker({
+          position: center,
+          map: map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#FF6B6B',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2
+          },
+          title: data.sector_name || 'RF Sector'
+        });
+        overlays.push(marker);
+
+        // Add info window
+        const infoWindow = new google.maps.InfoWindow({
+          content: `<div style="padding: 8px;">
+            <strong>${data.sector_name || 'RF Sector'}</strong><br/>
+            <strong>Azimuth:</strong> ${azimuth}°<br/>
+            <strong>Beamwidth:</strong> ${beamwidth}°<br/>
+            <strong>Radius:</strong> ${formatDistance(radius)}<br/>
+            <strong>Frequency:</strong> ${data.frequency} MHz
+          </div>`,
+          position: center
+        });
+        infoWindow.open(map);
+        overlays.push(infoWindow);
+        break;
+      }
+    }
+
+    return overlays;
+  };
+
+  /**
+   * Fit map bounds to show all overlays
+   */
+  const fitBoundsToOverlays = (overlays: any[], map: google.maps.Map) => {
+    const bounds = new google.maps.LatLngBounds();
+    let hasPoints = false;
+
+    overlays.forEach((overlay) => {
+      if (overlay instanceof google.maps.Polyline) {
+        overlay.getPath().forEach((latLng: google.maps.LatLng) => {
+          bounds.extend(latLng);
+          hasPoints = true;
+        });
+      } else if (overlay instanceof google.maps.Polygon) {
+        overlay.getPath().forEach((latLng: google.maps.LatLng) => {
+          bounds.extend(latLng);
+          hasPoints = true;
+        });
+      } else if (overlay instanceof google.maps.Circle) {
+        bounds.union(overlay.getBounds()!);
+        hasPoints = true;
+      } else if (overlay instanceof google.maps.Marker) {
+        const position = overlay.getPosition();
+        if (position) {
+          bounds.extend(position);
+          hasPoints = true;
+        }
+      }
+    });
+
+    if (hasPoints) {
+      map.fitBounds(bounds);
+    }
+  };
+
+  const formatDistance = (meters: number): string => {
+    if (meters < 1000) {
+      return `${meters.toFixed(2)} m`;
+    }
+    return `${(meters / 1000).toFixed(2)} km`;
+  };
+
+  const formatArea = (sqMeters: number): string => {
+    if (sqMeters < 1000000) {
+      return `${sqMeters.toFixed(2)} m²`;
+    }
+    return `${(sqMeters / 1000000).toFixed(2)} km²`;
+  };
 
   const loadLayerData = async () => {
     const data = await fetchAllData();
@@ -810,6 +1242,269 @@ const MapPage: React.FC = () => {
           localStorage.setItem('mapBoundarySettings', JSON.stringify(newSettings));
         }}
       />
+
+      {/* 360° Street View Modal */}
+      {show360View && show360ViewPosition && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                  <span className="mr-2">🌐</span>
+                  360° Street View
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Location: {show360ViewPosition.lat.toFixed(6)}, {show360ViewPosition.lng.toFixed(6)}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShow360View(false);
+                  setShow360ViewPosition(null);
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Street View Container */}
+            <div className="flex-1 relative">
+              <iframe
+                src={`https://www.google.com/maps/embed/v1/streetview?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&location=${show360ViewPosition.lat},${show360ViewPosition.lng}&heading=0&pitch=0&fov=90`}
+                className="w-full h-full border-0"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              ></iframe>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                Use mouse to drag and explore the 360° view • Scroll to zoom in/out
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Elevation Graph Panel */}
+      {showElevationGraph && elevationGraphData && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                  <span className="mr-2">⛰️</span>
+                  {elevationGraphData.profile_name || 'Elevation Profile'}
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Interactive elevation graph with detailed statistics
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowElevationGraph(false);
+                  setElevationGraphData(null);
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Statistics Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Distance</div>
+                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+                    {formatDistance(elevationGraphData.total_distance)}
+                  </div>
+                </div>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Max Elevation</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
+                    {elevationGraphData.max_elevation}m
+                  </div>
+                </div>
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Min Elevation</div>
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
+                    {elevationGraphData.min_elevation}m
+                  </div>
+                </div>
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Elevation Gain</div>
+                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+                    {((elevationGraphData.max_elevation || 0) - (elevationGraphData.min_elevation || 0)).toFixed(1)}m
+                  </div>
+                </div>
+              </div>
+
+              {/* Graph Visualization */}
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Elevation Profile Chart
+                </h3>
+                <div className="h-96 flex items-center justify-center">
+                  {elevationGraphData.elevation_data && elevationGraphData.elevation_data.length > 0 ? (
+                    <div className="w-full h-full">
+                      {/* Simplified elevation visualization */}
+                      <svg className="w-full h-full" viewBox="0 0 1000 300" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="elevGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1" />
+                          </linearGradient>
+                        </defs>
+                        <path
+                          d={(() => {
+                            const data = elevationGraphData.elevation_data;
+                            const maxElev = Math.max(...data.map((d: any) => d.elevation));
+                            const minElev = Math.min(...data.map((d: any) => d.elevation));
+                            const range = maxElev - minElev || 1;
+
+                            let path = 'M 0 300 ';
+                            data.forEach((point: any, i: number) => {
+                              const x = (i / (data.length - 1)) * 1000;
+                              const y = 300 - ((point.elevation - minElev) / range) * 250;
+                              path += `L ${x} ${y} `;
+                            });
+                            path += 'L 1000 300 Z';
+                            return path;
+                          })()}
+                          fill="url(#elevGradient)"
+                          stroke="#3b82f6"
+                          strokeWidth="2"
+                        />
+                        {/* High point marker */}
+                        {(() => {
+                          const data = elevationGraphData.elevation_data;
+                          const maxElev = Math.max(...data.map((d: any) => d.elevation));
+                          const minElev = Math.min(...data.map((d: any) => d.elevation));
+                          const range = maxElev - minElev || 1;
+                          const maxIndex = data.findIndex((d: any) => d.elevation === maxElev);
+                          const x = (maxIndex / (data.length - 1)) * 1000;
+                          const y = 300 - ((maxElev - minElev) / range) * 250;
+                          return <circle cx={x} cy={y} r="5" fill="#10b981" stroke="white" strokeWidth="2" />;
+                        })()}
+                        {/* Low point marker */}
+                        {(() => {
+                          const data = elevationGraphData.elevation_data;
+                          const maxElev = Math.max(...data.map((d: any) => d.elevation));
+                          const minElev = Math.min(...data.map((d: any) => d.elevation));
+                          const range = maxElev - minElev || 1;
+                          const minIndex = data.findIndex((d: any) => d.elevation === minElev);
+                          const x = (minIndex / (data.length - 1)) * 1000;
+                          const y = 300 - ((minElev - minElev) / range) * 250;
+                          return <circle cx={x} cy={y} r="5" fill="#3b82f6" stroke="white" strokeWidth="2" />;
+                        })()}
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 dark:text-gray-400">
+                      No elevation data available
+                    </div>
+                  )}
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center justify-center space-x-6 mt-4 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                    <span className="text-gray-600 dark:text-gray-400">Highest Point</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+                    <span className="text-gray-600 dark:text-gray-400">Lowest Point</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {elevationGraphData.notes && (
+                <div className="mt-6 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                    Notes:
+                  </div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
+                    {elevationGraphData.notes}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowElevationGraph(false);
+                  setElevationGraphData(null);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View on Map Details Panel - Reopenable */}
+      {viewOnMapOverlays && (
+        <ViewOnMapDetails
+          data={viewOnMapOverlays.data}
+          type={viewOnMapOverlays.type}
+          onClose={() => {
+            // Clear overlays from map
+            viewOnMapOverlays.overlays.forEach((overlay) => {
+              if (overlay && overlay.setMap) {
+                overlay.setMap(null);
+              }
+            });
+            setViewOnMapOverlays(null);
+          }}
+          on360ViewClick={(lat, lng) => {
+            setShow360ViewPosition({ lat, lng });
+            setShow360View(true);
+          }}
+          onElevationGraphClick={() => {
+            if (viewOnMapOverlays.type === 'elevation' && viewOnMapOverlays.data) {
+              setElevationGraphData(viewOnMapOverlays.data);
+              setShowElevationGraph(true);
+            }
+          }}
+        />
+      )}
     </PageContainer>
   );
 };

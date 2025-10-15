@@ -14,7 +14,7 @@ const USE_BACKEND = process.env.REACT_APP_USE_BACKEND === "true";
 export const fetchAllData = async (): Promise<DataHubEntry[]> => {
   if (USE_BACKEND) {
     try {
-      const response = await fetch(`${API_BASE_URL}/data-hub/all`);
+      const response = await fetch(`${API_BASE_URL}/datahub/all`);
       if (!response.ok) throw new Error("Failed to fetch data");
       return await response.json();
     } catch (error) {
@@ -157,7 +157,7 @@ const fetchFromLocalStorage = (): DataHubEntry[] => {
 export const deleteEntries = async (ids: string[]): Promise<void> => {
   if (USE_BACKEND) {
     try {
-      const response = await fetch(`${API_BASE_URL}/data-hub/delete`, {
+      const response = await fetch(`${API_BASE_URL}/datahub/delete`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids })
@@ -196,7 +196,7 @@ export const exportData = async (
 ): Promise<Blob> => {
   if (USE_BACKEND && format === "XLSX") {
     try {
-      const response = await fetch(`${API_BASE_URL}/data-hub/export/${format}`, {
+      const response = await fetch(`${API_BASE_URL}/datahub/export/${format}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entries })
