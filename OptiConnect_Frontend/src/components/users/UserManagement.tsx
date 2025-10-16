@@ -3,6 +3,7 @@ import { User } from '../../types/auth.types';
 import UserPermissionsDialog from './UserPermissionsDialog';
 import DeleteUserDialog from '../common/DeleteUserDialog';
 import DeleteConfirmationDialog from '../common/DeleteConfirmationDialog';
+import ChangePasswordDialog from './ChangePasswordDialog';
 import * as userService from '../../services/userService';
 import { useTemporaryRegionMonitor } from '../../hooks/useTemporaryRegionMonitor';
 
@@ -32,13 +33,17 @@ const UserManagement: React.FC = () => {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
-  
+
   // Bulk delete dialog state
   const [bulkDeleteDialog, setBulkDeleteDialog] = useState({
     isOpen: false,
     count: 0
   });
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  // Change password dialog state
+  const [showChangePasswordDialog, setShowChangePasswordDialog] = useState(false);
+  const [userToChangePassword, setUserToChangePassword] = useState<User | null>(null);
 
   // Form state for create/edit modals
   const [formData, setFormData] = useState<Partial<User>>({
@@ -334,6 +339,11 @@ const UserManagement: React.FC = () => {
     setShowDeleteDialog(true);
   };
 
+  const handleChangePassword = (user: User) => {
+    setUserToChangePassword(user);
+    setShowChangePasswordDialog(true);
+  };
+
   const confirmDeleteUser = async () => {
     if (!userToDelete) return;
 
@@ -417,36 +427,42 @@ const UserManagement: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <div className="h-14 w-14 rounded-lg bg-violet-600 dark:bg-violet-500 flex items-center justify-center shadow-lg">
-              <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
+      <div className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center py-6 gap-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <div className="h-14 w-14 rounded-lg bg-violet-600 dark:bg-violet-500 flex items-center justify-center shadow-lg">
+                  <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-violet-600 dark:text-violet-400">
+                  User Management
+                </h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Manage system users with role-based access control
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                User Management
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Manage system users with role-based access control
-            </p>
+            <button
+              onClick={handleCreateUser}
+              className="inline-flex items-center px-5 py-2.5 border border-transparent shadow-sm text-sm font-semibold rounded-lg text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 transition-colors duration-200"
+            >
+              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add New User
+            </button>
           </div>
         </div>
-          <button
-            onClick={handleCreateUser}
-            className="inline-flex items-center px-5 py-2.5 border border-transparent shadow-sm text-sm font-semibold rounded-lg text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 transition-colors duration-200"
-          >
-            <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Add New User
-          </button>
-        </div>
       </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       {/* Filters and Search */}
       <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border-2 border-violet-100 dark:border-violet-900/30 p-6 mb-6">
@@ -806,6 +822,15 @@ const UserManagement: React.FC = () => {
                       >
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleChangePassword(user)}
+                        className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                        title="Change Password"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                         </svg>
                       </button>
                       <button
@@ -1825,6 +1850,20 @@ const UserManagement: React.FC = () => {
         isLoading={isBulkDeleting}
         type="danger"
       />
+
+      {/* Change Password Dialog */}
+      {userToChangePassword && (
+        <ChangePasswordDialog
+          isOpen={showChangePasswordDialog}
+          onClose={() => {
+            setShowChangePasswordDialog(false);
+            setUserToChangePassword(null);
+          }}
+          userId={userToChangePassword.id}
+          userName={userToChangePassword.name}
+        />
+      )}
+      </div>
     </div>
   );
 };

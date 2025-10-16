@@ -174,11 +174,11 @@ const AdminPage: React.FC = () => {
 
   return (
     <PageContainer>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="bg-gray-50 dark:bg-gray-900">
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center py-6 gap-4">
               <div className="flex items-center space-x-4">
                 <div className="flex-shrink-0">
                   <div className="h-14 w-14 rounded-lg bg-red-600 dark:bg-red-500 flex items-center justify-center shadow-lg">
@@ -203,7 +203,7 @@ const AdminPage: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  <h1 className="text-3xl font-bold text-red-600 dark:text-red-400">
                     Administration
                   </h1>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -228,31 +228,47 @@ const AdminPage: React.FC = () => {
                 </span>
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* Tabs */}
-            <div className="border-t border-gray-200 dark:border-gray-700 mt-6">
-              <nav className="-mb-px flex space-x-1 overflow-x-auto pt-4">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+        {/* Tabs */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-2">
+            <nav className="flex space-x-2 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    relative inline-flex items-center gap-2.5 px-5 py-3 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 group
+                    ${
+                      activeTab === tab.id
+                        ? `${tab.bgColor} ${tab.iconColor} shadow-sm`
+                        : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                    }
+                  `}
+                >
+                  <span
                     className={`
-                      inline-flex items-center gap-2 px-4 py-2.5 border-b-2 font-semibold text-sm whitespace-nowrap transition-colors duration-200
+                      transition-transform duration-200
                       ${
                         activeTab === tab.id
-                          ? `border-red-500 ${tab.iconColor}`
-                          : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600"
+                          ? "scale-110"
+                          : "group-hover:scale-105"
                       }
                     `}
                   >
-                    <span className={activeTab === tab.id ? tab.iconColor : 'text-gray-500 dark:text-gray-400'}>
-                      {tab.icon}
-                    </span>
-                    <span>{tab.name}</span>
-                  </button>
-                ))}
-              </nav>
-            </div>
+                    {tab.icon}
+                  </span>
+                  <span className="font-semibold">{tab.name}</span>
+                  {activeTab === tab.id && (
+                    <div
+                      className={`absolute bottom-0 left-0 right-0 h-0.5 ${tab.bgColor} rounded-full`}
+                    />
+                  )}
+                </button>
+              ))}
+            </nav>
           </div>
         </div>
 
@@ -260,9 +276,35 @@ const AdminPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Tab Description */}
           <div className="mb-6">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {tabs.find((t) => t.id === activeTab)?.description}
-            </p>
+            {tabs
+              .filter((t) => t.id === activeTab)
+              .map((tab) => (
+                <div
+                  key={tab.id}
+                  className={`
+                  ${tab.bgColor} 
+                  border-l-4 ${tab.borderColor}
+                  rounded-lg p-4 shadow-sm
+                  transform transition-all duration-300 ease-out
+                `}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`${tab.iconColor} mt-0.5 flex-shrink-0`}>
+                      {tab.icon}
+                    </div>
+                    <div className="flex-1">
+                      <h3
+                        className={`text-sm font-semibold ${tab.iconColor} mb-1`}
+                      >
+                        {tab.name}
+                      </h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        {tab.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
           </div>
 
           {/* Content */}

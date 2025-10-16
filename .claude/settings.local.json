@@ -23,7 +23,11 @@
       "Bash(cat:*)",
       "Bash(mysql:*)",
       "Bash(npm test)",
-      "Bash(npm run dev)"
+      "Bash(npm run dev)",
+      "Bash(cmd //c taskkill:*)",
+      "Read(//c/Users/hkcha/OneDrive/Desktop/OptiConnect/**)",
+      "Read(//c/Users/hkcha/OneDrive/Desktop/**)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

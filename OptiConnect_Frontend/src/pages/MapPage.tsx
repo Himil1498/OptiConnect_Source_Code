@@ -15,7 +15,11 @@ import MapSettings from "../components/map/MapSettings";
 import ViewOnMapDetails from "../components/map/ViewOnMapDetails";
 import { fetchAllData } from "../services/dataHubService";
 import type { DataHubEntry } from "../types/gisTools.types";
-import { createOverlaysFromData, setOverlaysVisibility, type LayerOverlay } from "../utils/layerVisualization";
+import {
+  createOverlaysFromData,
+  setOverlaysVisibility,
+  type LayerOverlay
+} from "../utils/layerVisualization";
 
 const MapPage: React.FC = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -33,7 +37,7 @@ const MapPage: React.FC = () => {
   const [entries, setEntries] = useState<DataHubEntry[]>([]);
   const [boundarySettings, setBoundarySettings] = useState({
     enabled: true,
-    color: '#3B82F6', // Blue
+    color: "#3B82F6", // Blue
     opacity: 0.5,
     dimWhenToolActive: true,
     dimmedOpacity: 0.2
@@ -44,7 +48,10 @@ const MapPage: React.FC = () => {
     data?: any;
   } | null>(null);
   const [show360View, setShow360View] = useState(false);
-  const [show360ViewPosition, setShow360ViewPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [show360ViewPosition, setShow360ViewPosition] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [showElevationGraph, setShowElevationGraph] = useState(false);
   const [elevationGraphData, setElevationGraphData] = useState<any>(null);
   const [layersState, setLayersState] = useState({
@@ -89,7 +96,7 @@ const MapPage: React.FC = () => {
     const fetchRegions = async () => {
       if (user) {
         const regions = await getUserAssignedRegions(user);
-        console.log('🗺️ Updated map regions:', regions);
+        console.log("🗺️ Updated map regions:", regions);
         setAssignedRegions(regions);
       }
     };
@@ -105,7 +112,9 @@ const MapPage: React.FC = () => {
   useEffect(() => {
     return () => {
       if (mapInstance) {
-        console.log("🧹 Cleaning up map instance (navigating away from map page)");
+        console.log(
+          "🧹 Cleaning up map instance (navigating away from map page)"
+        );
         // Clear Redux state to force recreation when returning
         dispatch(setMapInstance(null));
       }
@@ -114,38 +123,42 @@ const MapPage: React.FC = () => {
 
   // Load boundary settings from localStorage
   useEffect(() => {
-    const savedSettings = localStorage.getItem('mapBoundarySettings');
+    const savedSettings = localStorage.getItem("mapBoundarySettings");
     if (savedSettings) {
       try {
         setBoundarySettings(JSON.parse(savedSettings));
       } catch (error) {
-        console.error('Failed to load boundary settings:', error);
+        console.error("Failed to load boundary settings:", error);
       }
     }
   }, []);
 
   // Check for "View on Map" data from GIS Data Hub
   useEffect(() => {
-    const viewOnMapDataStr = sessionStorage.getItem('viewOnMapData');
+    const viewOnMapDataStr = sessionStorage.getItem("viewOnMapData");
     if (viewOnMapDataStr && mapInstance) {
       try {
         const viewOnMapData = JSON.parse(viewOnMapDataStr);
-        console.log('🗺️ View on Map data received:', viewOnMapData);
+        console.log("🗺️ View on Map data received:", viewOnMapData);
 
         const { data, type } = viewOnMapData;
 
         // Clear sessionStorage after reading
-        sessionStorage.removeItem('viewOnMapData');
+        sessionStorage.removeItem("viewOnMapData");
 
         // Create overlays based on type
-        const createdOverlays = createViewOnMapOverlays(data, type, mapInstance);
+        const createdOverlays = createViewOnMapOverlays(
+          data,
+          type,
+          mapInstance
+        );
         setViewOnMapOverlays({ overlays: createdOverlays, type, data });
 
         // Zoom to fit the bounds
         fitBoundsToOverlays(createdOverlays, mapInstance);
 
         // Show elevation graph if viewing elevation profile
-        if (type === 'elevation' && data.elevation_data) {
+        if (type === "elevation" && data.elevation_data) {
           setElevationGraphData(data);
           setShowElevationGraph(true);
         }
@@ -153,20 +166,20 @@ const MapPage: React.FC = () => {
         // Show notification
         dispatch(
           addNotification({
-            type: 'success',
-            title: 'View on Map',
+            type: "success",
+            title: "View on Map",
             message: `Displaying ${type} on map`,
             autoClose: true,
             duration: 3000
           })
         );
       } catch (error) {
-        console.error('Error processing View on Map data:', error);
+        console.error("Error processing View on Map data:", error);
         dispatch(
           addNotification({
-            type: 'error',
-            title: 'View on Map Error',
-            message: 'Failed to display item on map',
+            type: "error",
+            title: "View on Map Error",
+            message: "Failed to display item on map",
             autoClose: true,
             duration: 3000
           })
@@ -183,7 +196,7 @@ const MapPage: React.FC = () => {
   // Reload layer data when map becomes available
   useEffect(() => {
     if (mapInstance && entries.length > 0) {
-      console.log('📍 Map loaded, creating overlays for saved data...');
+      console.log("📍 Map loaded, creating overlays for saved data...");
       loadLayerData();
     }
   }, [mapInstance]);
@@ -191,18 +204,22 @@ const MapPage: React.FC = () => {
   /**
    * Create overlays for "View on Map" feature
    */
-  const createViewOnMapOverlays = (data: any, type: string, map: google.maps.Map) => {
+  const createViewOnMapOverlays = (
+    data: any,
+    type: string,
+    map: google.maps.Map
+  ) => {
     const overlays: any[] = [];
 
     switch (type) {
-      case 'distance': {
+      case "distance": {
         // Create polyline
         const points = data.points || [];
         if (points.length > 0) {
           const polyline = new google.maps.Polyline({
             path: points,
             geodesic: true,
-            strokeColor: '#FF0000',
+            strokeColor: "#FF0000",
             strokeOpacity: 1.0,
             strokeWeight: 4,
             map: map,
@@ -214,80 +231,31 @@ const MapPage: React.FC = () => {
           const startMarker = new google.maps.Marker({
             position: points[0],
             map: map,
-            label: { text: 'A', color: 'white', fontWeight: 'bold' },
-            title: 'Start Point'
+            label: { text: "A", color: "white", fontWeight: "bold" },
+            title: "Start Point"
           });
           overlays.push(startMarker);
 
           const endMarker = new google.maps.Marker({
             position: points[points.length - 1],
             map: map,
-            label: { text: 'B', color: 'white', fontWeight: 'bold' },
-            title: 'End Point'
+            label: { text: "B", color: "white", fontWeight: "bold" },
+            title: "End Point"
           });
           overlays.push(endMarker);
 
-          // Add info window with distance and 360° view button
-          const midPoint = points[Math.floor(points.length / 2)];
-          const infoWindow = new google.maps.InfoWindow({
-            content: `<div style="padding: 12px;">
-              <strong style="font-size: 14px;">${data.measurement_name || 'Distance Measurement'}</strong><br/>
-              <div style="margin: 8px 0;">
-                <strong>Distance:</strong> ${formatDistance(data.total_distance)}<br/>
-                ${data.notes ? `<em style="color: #666;">${data.notes}</em><br/>` : ''}
-              </div>
-              <button
-                id="view360Button"
-                style="
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  color: white;
-                  border: none;
-                  padding: 8px 16px;
-                  border-radius: 6px;
-                  cursor: pointer;
-                  font-weight: 600;
-                  font-size: 13px;
-                  width: 100%;
-                  margin-top: 4px;
-                  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                  transition: transform 0.2s;
-                "
-                onmouseover="this.style.transform='scale(1.05)'"
-                onmouseout="this.style.transform='scale(1)'"
-                onclick="window.open360View(${midPoint.lat}, ${midPoint.lng})"
-              >
-                🌐 View 360° Street View
-              </button>
-            </div>`,
-            position: midPoint
-          });
-
-          // Add global function to open 360 view
+          // Add global function to open 360 view (for ViewOnMapDetails component)
           (window as any).open360View = (lat: number, lng: number) => {
             setShow360ViewPosition({ lat, lng });
             setShow360View(true);
           };
 
-          infoWindow.open(map);
-          overlays.push(infoWindow);
-
-          // Make polyline clickable to reopen info window
-          polyline.addListener('click', () => {
-            infoWindow.open(map);
-          });
-
-          // Make markers clickable to reopen info window
-          startMarker.addListener('click', () => {
-            infoWindow.open(map);
-          });
-          endMarker.addListener('click', () => {
-            infoWindow.open(map);
-          });
+          // OLD InfoWindow removed - now using ViewOnMapDetails component
         }
         break;
       }
 
-      case 'elevation': {
+      case "elevation": {
         // Create polyline for elevation profile
         const startPoint = data.start_point;
         const endPoint = data.end_point;
@@ -295,7 +263,7 @@ const MapPage: React.FC = () => {
           const polyline = new google.maps.Polyline({
             path: [startPoint, endPoint],
             geodesic: true,
-            strokeColor: '#8B4513',
+            strokeColor: "#8B4513",
             strokeOpacity: 1.0,
             strokeWeight: 4,
             map: map
@@ -306,78 +274,53 @@ const MapPage: React.FC = () => {
           const startMarker = new google.maps.Marker({
             position: startPoint,
             map: map,
-            label: { text: 'A', color: 'white', fontWeight: 'bold' },
-            title: 'Start Point'
+            label: { text: "A", color: "white", fontWeight: "bold" },
+            title: "Start Point"
           });
           overlays.push(startMarker);
 
           const endMarker = new google.maps.Marker({
             position: endPoint,
             map: map,
-            label: { text: 'B', color: 'white', fontWeight: 'bold' },
-            title: 'End Point'
+            label: { text: "B", color: "white", fontWeight: "bold" },
+            title: "End Point"
           });
           overlays.push(endMarker);
 
-          // Add info window with elevation data
-          const infoWindow = new google.maps.InfoWindow({
-            content: `<div style="padding: 8px;">
-              <strong>${data.profile_name || 'Elevation Profile'}</strong><br/>
-              <strong>Distance:</strong> ${formatDistance(data.total_distance)}<br/>
-              <strong>Max Elevation:</strong> ${data.max_elevation}m<br/>
-              <strong>Min Elevation:</strong> ${data.min_elevation}m
-            </div>`,
-            position: {
-              lat: (startPoint.lat + endPoint.lat) / 2,
-              lng: (startPoint.lng + endPoint.lng) / 2
-            }
-          });
-          infoWindow.open(map);
-          overlays.push(infoWindow);
+          // OLD InfoWindow removed - now using ViewOnMapDetails component
         }
         break;
       }
 
-      case 'polygon': {
+      case "polygon": {
         // Create polygon
         const coordinates = data.coordinates || [];
         if (coordinates.length > 0) {
           const polygon = new google.maps.Polygon({
             paths: coordinates,
-            strokeColor: data.stroke_color || '#000000',
+            strokeColor: data.stroke_color || "#000000",
             strokeOpacity: 1.0,
             strokeWeight: 2,
-            fillColor: data.fill_color || '#FF0000',
+            fillColor: data.fill_color || "#FF0000",
             fillOpacity: data.opacity || 0.35,
             map: map
           });
           overlays.push(polygon);
 
-          // Add info window
-          const bounds = new google.maps.LatLngBounds();
-          coordinates.forEach((coord: any) => bounds.extend(coord));
-          const center = bounds.getCenter();
-
-          const infoWindow = new google.maps.InfoWindow({
-            content: `<div style="padding: 8px;">
-              <strong>${data.polygon_name || 'Polygon'}</strong><br/>
-              ${data.area ? `<strong>Area:</strong> ${formatArea(data.area)}<br/>` : ''}
-              ${data.notes ? `<em>${data.notes}</em>` : ''}
-            </div>`,
-            position: center
-          });
-          infoWindow.open(map);
-          overlays.push(infoWindow);
+          // OLD InfoWindow removed - now using ViewOnMapDetails component
         }
         break;
       }
 
-      case 'circle': {
+      case "circle": {
         // Create circle
-        const center = { lat: Number(data.center_lat), lng: Number(data.center_lng) };
+        const center = {
+          lat: Number(data.center_lat),
+          lng: Number(data.center_lng)
+        };
         const radiusInMeters = Number(data.radius);
 
-        console.log('⭕ Creating circle:', {
+        console.log("⭕ Creating circle:", {
           center,
           radius: radiusInMeters,
           strokeColor: data.stroke_color,
@@ -389,10 +332,10 @@ const MapPage: React.FC = () => {
         const circle = new google.maps.Circle({
           center: center,
           radius: radiusInMeters,
-          strokeColor: data.stroke_color || '#4285F4',
+          strokeColor: data.stroke_color || "#4285F4",
           strokeOpacity: 1.0,
           strokeWeight: 3,
-          fillColor: data.fill_color || '#4285F4',
+          fillColor: data.fill_color || "#4285F4",
           fillOpacity: Number(data.opacity) || 0.4,
           map: map,
           zIndex: 2,
@@ -401,49 +344,41 @@ const MapPage: React.FC = () => {
         });
         overlays.push(circle);
 
-        console.log('✅ Circle created and added to map');
+        console.log("✅ Circle created and added to map");
 
         // Add center marker with custom icon for better visibility
         const marker = new google.maps.Marker({
           position: center,
           map: map,
-          title: data.circle_name || 'Circle',
+          title: data.circle_name || "Circle",
           zIndex: 10, // Higher z-index to ensure it's above the circle
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
             scale: 10,
-            fillColor: '#4CAF50',
+            fillColor: "#4CAF50",
             fillOpacity: 1,
-            strokeColor: '#ffffff',
+            strokeColor: "#ffffff",
             strokeWeight: 3
           },
           label: {
-            text: '⭕',
-            color: '#ffffff',
-            fontSize: '16px',
-            fontWeight: 'bold'
+            text: "⭕",
+            color: "#ffffff",
+            fontSize: "16px",
+            fontWeight: "bold"
           }
         });
         overlays.push(marker);
 
-        // Add info window
-        const infoWindow = new google.maps.InfoWindow({
-          content: `<div style="padding: 8px;">
-            <strong>${data.circle_name || 'Circle'}</strong><br/>
-            <strong>Center:</strong> ${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}<br/>
-            <strong>Radius:</strong> ${formatDistance(radiusInMeters)}<br/>
-            ${data.notes ? `<em>${data.notes}</em>` : ''}
-          </div>`,
-          position: center
-        });
-        infoWindow.open(map);
-        overlays.push(infoWindow);
+        // OLD InfoWindow removed - now using ViewOnMapDetails component
         break;
       }
 
-      case 'sector': {
+      case "sector": {
         // Create RF sector
-        const center = { lat: Number(data.tower_lat), lng: Number(data.tower_lng) };
+        const center = {
+          lat: Number(data.tower_lat),
+          lng: Number(data.tower_lng)
+        };
         const azimuth = data.azimuth;
         const beamwidth = data.beamwidth;
         const radius = data.radius;
@@ -465,10 +400,10 @@ const MapPage: React.FC = () => {
 
         const polygon = new google.maps.Polygon({
           paths: sectorPath,
-          strokeColor: data.stroke_color || '#FF6B6B',
+          strokeColor: data.stroke_color || "#FF6B6B",
           strokeOpacity: 1.0,
           strokeWeight: 2,
-          fillColor: data.fill_color || '#FF6B6B',
+          fillColor: data.fill_color || "#FF6B6B",
           fillOpacity: data.opacity || 0.35,
           map: map
         });
@@ -481,28 +416,64 @@ const MapPage: React.FC = () => {
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
             scale: 8,
-            fillColor: '#FF6B6B',
+            fillColor: "#FF6B6B",
             fillOpacity: 1,
-            strokeColor: '#ffffff',
+            strokeColor: "#ffffff",
             strokeWeight: 2
           },
-          title: data.sector_name || 'RF Sector'
+          title: data.sector_name || "RF Sector"
         });
         overlays.push(marker);
 
-        // Add info window
-        const infoWindow = new google.maps.InfoWindow({
-          content: `<div style="padding: 8px;">
-            <strong>${data.sector_name || 'RF Sector'}</strong><br/>
-            <strong>Azimuth:</strong> ${azimuth}°<br/>
-            <strong>Beamwidth:</strong> ${beamwidth}°<br/>
-            <strong>Radius:</strong> ${formatDistance(radius)}<br/>
-            <strong>Frequency:</strong> ${data.frequency} MHz
-          </div>`,
-          position: center
+        // OLD InfoWindow removed - now using ViewOnMapDetails component
+        break;
+      }
+
+      case "infrastructure": {
+        // Create infrastructure marker
+        const position = {
+          lat: Number(data.latitude),
+          lng: Number(data.longitude)
+        };
+
+        // Determine marker color based on type and source
+        const isKML = data.source === "KML";
+        const isPOP = data.item_type === "POP";
+        let markerColor = "";
+        if (isKML) {
+          markerColor = isPOP ? "#4CAF50" : "#8BC34A"; // Green shades for KML
+        } else {
+          markerColor = isPOP ? "#2196F3" : "#03A9F4"; // Blue shades for Manual
+        }
+
+        const marker = new google.maps.Marker({
+          position: position,
+          map: map,
+          title: data.item_name || "Infrastructure",
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: markerColor,
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2,
+            scale: isPOP ? 10 : 7
+          },
+          label: isKML ? undefined : {
+            text: isPOP ? "P" : "S",
+            color: "white",
+            fontWeight: "bold"
+          }
         });
-        infoWindow.open(map);
-        overlays.push(infoWindow);
+        overlays.push(marker);
+
+        console.log("🏗️ Infrastructure marker created:", {
+          name: data.item_name,
+          type: data.item_type,
+          source: data.source,
+          position
+        });
+
+        // OLD InfoWindow removed - now using ViewOnMapDetails component
         break;
       }
     }
@@ -565,7 +536,7 @@ const MapPage: React.FC = () => {
 
     // Only create overlays if map is loaded
     if (!mapInstance) {
-      console.warn('Map not loaded yet, will create overlays later');
+      console.warn("Map not loaded yet, will create overlays later");
       return;
     }
 
@@ -580,7 +551,10 @@ const MapPage: React.FC = () => {
     const distanceOverlays = createOverlaysFromData(distanceData, mapInstance);
     const polygonOverlays = createOverlaysFromData(polygonData, mapInstance);
     const circleOverlays = createOverlaysFromData(circleData, mapInstance);
-    const elevationOverlays = createOverlaysFromData(elevationData, mapInstance);
+    const elevationOverlays = createOverlaysFromData(
+      elevationData,
+      mapInstance
+    );
     const infraOverlays = createOverlaysFromData(infraData, mapInstance);
     const sectorRFOverlays = createOverlaysFromData(sectorRFData, mapInstance);
 
@@ -632,7 +606,11 @@ const MapPage: React.FC = () => {
       const layer = prev[layerType as keyof typeof prev];
       const newVisibility = !layer.visible;
 
-      console.log(`🔄 Toggling ${layerType} layer: ${newVisibility ? 'SHOW' : 'HIDE'} (${layer.overlays.length} overlays)`);
+      console.log(
+        `🔄 Toggling ${layerType} layer: ${newVisibility ? "SHOW" : "HIDE"} (${
+          layer.overlays.length
+        } overlays)`
+      );
 
       // Show/hide overlays
       setOverlaysVisibility(layer.overlays, newVisibility, mapInstance);
@@ -655,7 +633,9 @@ const MapPage: React.FC = () => {
       const needsRecreation = !mapInstance;
 
       if (needsRecreation) {
-        console.log("🔄 Map needs recreation (navigated back to page or first load)");
+        console.log(
+          "🔄 Map needs recreation (navigated back to page or first load)"
+        );
       } else {
         console.log("✅ Map instance already exists, skipping creation");
         return; // Don't create duplicate maps
@@ -736,7 +716,7 @@ const MapPage: React.FC = () => {
         const stateNameRaw =
           feature.getProperty("NAME_1") ||
           feature.getProperty("ST_NM") ||
-          feature.getProperty("st_nm") ||  // Lowercase variant
+          feature.getProperty("st_nm") || // Lowercase variant
           feature.getProperty("name");
         const stateName = String(stateNameRaw || "");
 
@@ -748,9 +728,10 @@ const MapPage: React.FC = () => {
         );
 
         // Calculate current opacity based on tool state
-        const currentOpacity = (activeGISTool && boundarySettings.dimWhenToolActive)
-          ? boundarySettings.dimmedOpacity
-          : boundarySettings.opacity;
+        const currentOpacity =
+          activeGISTool && boundarySettings.dimWhenToolActive
+            ? boundarySettings.dimmedOpacity
+            : boundarySettings.opacity;
 
         // Assigned region styling
         if (isHighlighted) {
@@ -771,9 +752,9 @@ const MapPage: React.FC = () => {
         }
 
         return {
-          fillColor: '#9CA3AF', // Gray
+          fillColor: "#9CA3AF", // Gray
           fillOpacity: currentOpacity * 0.2,
-          strokeColor: '#D1D5DB',
+          strokeColor: "#D1D5DB",
           strokeWeight: 0.5,
           strokeOpacity: currentOpacity * 0.5,
           visible: true,
@@ -791,7 +772,7 @@ const MapPage: React.FC = () => {
         const stateNameRaw =
           event.feature.getProperty("NAME_1") ||
           event.feature.getProperty("ST_NM") ||
-          event.feature.getProperty("st_nm") ||  // Lowercase variant
+          event.feature.getProperty("st_nm") || // Lowercase variant
           event.feature.getProperty("name");
         const stateName = String(stateNameRaw || "Unknown Region");
 
@@ -825,7 +806,7 @@ const MapPage: React.FC = () => {
           const stateNameRaw =
             event.feature.getProperty("NAME_1") ||
             event.feature.getProperty("ST_NM") ||
-            event.feature.getProperty("st_nm") ||  // Lowercase variant
+            event.feature.getProperty("st_nm") || // Lowercase variant
             event.feature.getProperty("name");
           const stateName = String(stateNameRaw || "");
 
@@ -837,7 +818,7 @@ const MapPage: React.FC = () => {
 
           if (isHighlighted) {
             dataLayer.overrideStyle(event.feature, {
-              fillOpacity: 0.7,
+              fillOpacity: 0,
               strokeWeight: 3
             });
           }
@@ -1239,7 +1220,10 @@ const MapPage: React.FC = () => {
         settings={boundarySettings}
         onSettingsChange={(newSettings) => {
           setBoundarySettings(newSettings);
-          localStorage.setItem('mapBoundarySettings', JSON.stringify(newSettings));
+          localStorage.setItem(
+            "mapBoundarySettings",
+            JSON.stringify(newSettings)
+          );
         }}
       />
 
@@ -1255,7 +1239,8 @@ const MapPage: React.FC = () => {
                   360° Street View
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Location: {show360ViewPosition.lat.toFixed(6)}, {show360ViewPosition.lng.toFixed(6)}
+                  Location: {show360ViewPosition.lat.toFixed(6)},{" "}
+                  {show360ViewPosition.lng.toFixed(6)}
                 </p>
               </div>
               <button
@@ -1295,7 +1280,8 @@ const MapPage: React.FC = () => {
             {/* Footer */}
             <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                Use mouse to drag and explore the 360° view • Scroll to zoom in/out
+                Use mouse to drag and explore the 360° view • Scroll to zoom
+                in/out
               </p>
             </div>
           </div>
@@ -1311,7 +1297,7 @@ const MapPage: React.FC = () => {
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
                   <span className="mr-2">⛰️</span>
-                  {elevationGraphData.profile_name || 'Elevation Profile'}
+                  {elevationGraphData.profile_name || "Elevation Profile"}
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   Interactive elevation graph with detailed statistics
@@ -1345,27 +1331,39 @@ const MapPage: React.FC = () => {
               {/* Statistics Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Distance</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Total Distance
+                  </div>
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
                     {formatDistance(elevationGraphData.total_distance)}
                   </div>
                 </div>
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Max Elevation</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Max Elevation
+                  </div>
                   <div className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
                     {elevationGraphData.max_elevation}m
                   </div>
                 </div>
                 <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Min Elevation</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Min Elevation
+                  </div>
                   <div className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
                     {elevationGraphData.min_elevation}m
                   </div>
                 </div>
                 <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Elevation Gain</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Elevation Gain
+                  </div>
                   <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-                    {((elevationGraphData.max_elevation || 0) - (elevationGraphData.min_elevation || 0)).toFixed(1)}m
+                    {(
+                      (elevationGraphData.max_elevation || 0) -
+                      (elevationGraphData.min_elevation || 0)
+                    ).toFixed(1)}
+                    m
                   </div>
                 </div>
               </div>
@@ -1376,58 +1374,217 @@ const MapPage: React.FC = () => {
                   Elevation Profile Chart
                 </h3>
                 <div className="h-96 flex items-center justify-center">
-                  {elevationGraphData.elevation_data && elevationGraphData.elevation_data.length > 0 ? (
+                  {elevationGraphData.elevation_data &&
+                  elevationGraphData.elevation_data.length > 0 ? (
                     <div className="w-full h-full">
-                      {/* Simplified elevation visualization */}
-                      <svg className="w-full h-full" viewBox="0 0 1000 300" preserveAspectRatio="none">
+                      {/* Elevation visualization with axis labels */}
+                      <svg
+                        className="w-full h-full"
+                        viewBox="0 0 1100 350"
+                        preserveAspectRatio="xMidYMid meet"
+                      >
                         <defs>
-                          <linearGradient id="elevGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
-                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1" />
+                          <linearGradient
+                            id="elevGradient"
+                            x1="0%"
+                            y1="0%"
+                            x2="0%"
+                            y2="100%"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="#3b82f6"
+                              stopOpacity="0.6"
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="#3b82f6"
+                              stopOpacity="0.1"
+                            />
                           </linearGradient>
                         </defs>
-                        <path
-                          d={(() => {
-                            const data = elevationGraphData.elevation_data;
-                            const maxElev = Math.max(...data.map((d: any) => d.elevation));
-                            const minElev = Math.min(...data.map((d: any) => d.elevation));
-                            const range = maxElev - minElev || 1;
 
-                            let path = 'M 0 300 ';
-                            data.forEach((point: any, i: number) => {
-                              const x = (i / (data.length - 1)) * 1000;
-                              const y = 300 - ((point.elevation - minElev) / range) * 250;
-                              path += `L ${x} ${y} `;
+                        {/* Y-axis label */}
+                        <text
+                          x="15"
+                          y="20"
+                          fill="currentColor"
+                          fontSize="14"
+                          fontWeight="600"
+                          className="fill-gray-700 dark:fill-gray-300"
+                        >
+                          Elevation (m)
+                        </text>
+
+                        {/* X-axis label */}
+                        <text
+                          x="550"
+                          y="340"
+                          fill="currentColor"
+                          fontSize="14"
+                          fontWeight="600"
+                          textAnchor="middle"
+                          className="fill-gray-700 dark:fill-gray-300"
+                        >
+                          Distance ({elevationGraphData.total_distance < 1000 ? 'm' : 'km'})
+                        </text>
+
+                        {/* Graph area (shifted down and right for labels) */}
+                        <g transform="translate(80, 30)">
+                          {/* Y-axis values */}
+                          {(() => {
+                            const data = elevationGraphData.elevation_data;
+                            const maxElev = Math.max(
+                              ...data.map((d: any) => d.elevation)
+                            );
+                            const minElev = Math.min(
+                              ...data.map((d: any) => d.elevation)
+                            );
+                            return [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                              const elev = minElev + (maxElev - minElev) * ratio;
+                              const y = 250 - ratio * 250;
+                              return (
+                                <g key={ratio}>
+                                  <text
+                                    x="-10"
+                                    y={y + 5}
+                                    fill="currentColor"
+                                    fontSize="11"
+                                    textAnchor="end"
+                                    className="fill-gray-600 dark:fill-gray-400"
+                                  >
+                                    {elev.toFixed(0)}
+                                  </text>
+                                  <line
+                                    x1="-5"
+                                    y1={y}
+                                    x2="0"
+                                    y2={y}
+                                    stroke="currentColor"
+                                    strokeWidth="1"
+                                    className="stroke-gray-400 dark:stroke-gray-600"
+                                  />
+                                </g>
+                              );
                             });
-                            path += 'L 1000 300 Z';
-                            return path;
                           })()}
-                          fill="url(#elevGradient)"
-                          stroke="#3b82f6"
-                          strokeWidth="2"
-                        />
-                        {/* High point marker */}
-                        {(() => {
-                          const data = elevationGraphData.elevation_data;
-                          const maxElev = Math.max(...data.map((d: any) => d.elevation));
-                          const minElev = Math.min(...data.map((d: any) => d.elevation));
-                          const range = maxElev - minElev || 1;
-                          const maxIndex = data.findIndex((d: any) => d.elevation === maxElev);
-                          const x = (maxIndex / (data.length - 1)) * 1000;
-                          const y = 300 - ((maxElev - minElev) / range) * 250;
-                          return <circle cx={x} cy={y} r="5" fill="#10b981" stroke="white" strokeWidth="2" />;
-                        })()}
-                        {/* Low point marker */}
-                        {(() => {
-                          const data = elevationGraphData.elevation_data;
-                          const maxElev = Math.max(...data.map((d: any) => d.elevation));
-                          const minElev = Math.min(...data.map((d: any) => d.elevation));
-                          const range = maxElev - minElev || 1;
-                          const minIndex = data.findIndex((d: any) => d.elevation === minElev);
-                          const x = (minIndex / (data.length - 1)) * 1000;
-                          const y = 300 - ((minElev - minElev) / range) * 250;
-                          return <circle cx={x} cy={y} r="5" fill="#3b82f6" stroke="white" strokeWidth="2" />;
-                        })()}
+
+                          {/* X-axis values */}
+                          {(() => {
+                            const totalDist = elevationGraphData.total_distance;
+                            const isKm = totalDist >= 1000;
+                            return [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                              const dist = totalDist * ratio;
+                              const displayDist = isKm ? (dist / 1000).toFixed(1) : dist.toFixed(0);
+                              const x = ratio * 940;
+                              return (
+                                <g key={ratio}>
+                                  <text
+                                    x={x}
+                                    y="270"
+                                    fill="currentColor"
+                                    fontSize="11"
+                                    textAnchor="middle"
+                                    className="fill-gray-600 dark:fill-gray-400"
+                                  >
+                                    {displayDist}
+                                  </text>
+                                  <line
+                                    x1={x}
+                                    y1="250"
+                                    x2={x}
+                                    y2="255"
+                                    stroke="currentColor"
+                                    strokeWidth="1"
+                                    className="stroke-gray-400 dark:stroke-gray-600"
+                                  />
+                                </g>
+                              );
+                            });
+                          })()}
+
+                          {/* Elevation path */}
+                          <path
+                            d={(() => {
+                              const data = elevationGraphData.elevation_data;
+                              const maxElev = Math.max(
+                                ...data.map((d: any) => d.elevation)
+                              );
+                              const minElev = Math.min(
+                                ...data.map((d: any) => d.elevation)
+                              );
+                              const range = maxElev - minElev || 1;
+
+                              let path = "M 0 250 ";
+                              data.forEach((point: any, i: number) => {
+                                const x = (i / (data.length - 1)) * 940;
+                                const y =
+                                  250 -
+                                  ((point.elevation - minElev) / range) * 250;
+                                path += `L ${x} ${y} `;
+                              });
+                              path += "L 940 250 Z";
+                              return path;
+                            })()}
+                            fill="url(#elevGradient)"
+                            stroke="#3b82f6"
+                            strokeWidth="2"
+                          />
+
+                          {/* High point marker */}
+                          {(() => {
+                            const data = elevationGraphData.elevation_data;
+                            const maxElev = Math.max(
+                              ...data.map((d: any) => d.elevation)
+                            );
+                            const minElev = Math.min(
+                              ...data.map((d: any) => d.elevation)
+                            );
+                            const range = maxElev - minElev || 1;
+                            const maxIndex = data.findIndex(
+                              (d: any) => d.elevation === maxElev
+                            );
+                            const x = (maxIndex / (data.length - 1)) * 940;
+                            const y = 250 - ((maxElev - minElev) / range) * 250;
+                            return (
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r="5"
+                                fill="#10b981"
+                                stroke="white"
+                                strokeWidth="2"
+                              />
+                            );
+                          })()}
+
+                          {/* Low point marker */}
+                          {(() => {
+                            const data = elevationGraphData.elevation_data;
+                            const maxElev = Math.max(
+                              ...data.map((d: any) => d.elevation)
+                            );
+                            const minElev = Math.min(
+                              ...data.map((d: any) => d.elevation)
+                            );
+                            const range = maxElev - minElev || 1;
+                            const minIndex = data.findIndex(
+                              (d: any) => d.elevation === minElev
+                            );
+                            const x = (minIndex / (data.length - 1)) * 940;
+                            const y = 250 - ((minElev - minElev) / range) * 250;
+                            return (
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r="5"
+                                fill="#3b82f6"
+                                stroke="white"
+                                strokeWidth="2"
+                              />
+                            );
+                          })()}
+                        </g>
                       </svg>
                     </div>
                   ) : (
@@ -1441,11 +1598,15 @@ const MapPage: React.FC = () => {
                 <div className="flex items-center justify-center space-x-6 mt-4 text-sm">
                   <div className="flex items-center space-x-2">
                     <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                    <span className="text-gray-600 dark:text-gray-400">Highest Point</span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Highest Point
+                    </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="w-4 h-4 rounded-full bg-blue-500"></div>
-                    <span className="text-gray-600 dark:text-gray-400">Lowest Point</span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Lowest Point
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1498,7 +1659,10 @@ const MapPage: React.FC = () => {
             setShow360View(true);
           }}
           onElevationGraphClick={() => {
-            if (viewOnMapOverlays.type === 'elevation' && viewOnMapOverlays.data) {
+            if (
+              viewOnMapOverlays.type === "elevation" &&
+              viewOnMapOverlays.data
+            ) {
               setElevationGraphData(viewOnMapOverlays.data);
               setShowElevationGraph(true);
             }

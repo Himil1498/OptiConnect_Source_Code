@@ -165,32 +165,32 @@ const DashboardLayout: React.FC = () => {
     <PageContainer>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         {/* Header */}
-        <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-20">
+            <div className="flex items-center justify-between py-6">
               <div className="flex items-center space-x-4">
                 <div className="flex-shrink-0">
-                  <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center shadow-lg">
+                  <div className="h-14 w-14 rounded-lg bg-cyan-600 dark:bg-cyan-500 flex items-center justify-center shadow-lg">
                     <svg
                       className="h-8 w-8 text-white"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      strokeWidth={2}
                     >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
                         d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                       />
                     </svg>
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-600 to-cyan-800 dark:from-cyan-400 dark:to-cyan-600 bg-clip-text text-transparent">
+                  <h1 className="text-3xl font-bold text-cyan-600 dark:text-cyan-400">
                     Dashboard & Analytics
                   </h1>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 font-medium mt-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     Real-time metrics and system insights
                   </p>
                 </div>

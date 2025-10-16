@@ -225,9 +225,9 @@ const NavigationBar: React.FC = () => {
     {
       name: "GIS Data Hub",
       href: "/gis-data-hub",
-      color: "from-indigo-500 to-indigo-600",
-      iconColor: "text-indigo-600 dark:text-indigo-400",
-      bgColor: "bg-indigo-50 dark:bg-indigo-900/20",
+      color: "from-emerald-500 to-emerald-600",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+      bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
       icon: (
         <svg
           className="h-5 w-5"
@@ -282,20 +282,19 @@ const NavigationBar: React.FC = () => {
                   className={`${
                     isActive(item.href)
                       ? `border-b-2 border-current ${item.iconColor} font-semibold`
-                      : `border-transparent text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200`
+                      : `border-transparent text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white`
                   } inline-flex items-center gap-2 px-3 pt-1 pb-1 text-sm transition-all duration-200 group relative`}
                 >
-                  {/* Fixed: Icons now visible in light mode with proper stroke width */}
+                  {/* Icons with proper color handling for dark/light mode */}
                   <span
-                    className={`transform group-hover:scale-110 transition-all duration-200`}
+                    className={`transform group-hover:scale-110 transition-all duration-200 ${
+                      isActive(item.href)
+                        ? item.iconColor
+                        : "text-gray-600 dark:text-gray-300"
+                    }`}
                   >
                     <svg
-                      className={`h-5 w-5 ${
-                        isActive(item.href)
-                          ? item.iconColor
-                          : "text-gray-700 dark:text-gray-400 group-hover:" +
-                            item.iconColor
-                      }`}
+                      className="h-5 w-5"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -729,10 +728,13 @@ const NavigationBar: React.FC = () => {
                   {/* Permanent Regions Preview */}
                   {(() => {
                     // Filter out temporary regions from permanent display to avoid duplication
-                    const tempRegionNames = tempAccessGrants.map(g => g.region);
-                    const permanentOnly = user?.assignedRegions?.filter(
-                      (region: string) => !tempRegionNames.includes(region)
-                    ) || [];
+                    const tempRegionNames = tempAccessGrants.map(
+                      (g) => g.region
+                    );
+                    const permanentOnly =
+                      user?.assignedRegions?.filter(
+                        (region: string) => !tempRegionNames.includes(region)
+                      ) || [];
 
                     return permanentOnly.length > 0 ? (
                       <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-emerald-50/30 dark:bg-emerald-900/10">
@@ -818,15 +820,25 @@ const NavigationBar: React.FC = () => {
                 className={`${
                   isActive(item.href)
                     ? `${item.bgColor} border-current ${item.iconColor} font-semibold`
-                    : "border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    : "border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
                 } flex items-center gap-3 pl-3 pr-4 py-3 border-l-4 text-base transition-all duration-200`}
               >
                 <span
                   className={`flex-shrink-0 ${
-                    isActive(item.href) ? item.iconColor : ""
+                    isActive(item.href)
+                      ? item.iconColor
+                      : "text-gray-600 dark:text-gray-300"
                   }`}
                 >
-                  {item.icon}
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    {item.icon.props.children}
+                  </svg>
                 </span>
                 <span className="font-medium">{item.name}</span>
               </Link>

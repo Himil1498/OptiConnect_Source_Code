@@ -8,7 +8,7 @@ import CircleDrawingTool from "../tools/CircleDrawingTool";
 import ElevationProfileTool from "../tools/ElevationProfileTool";
 import InfrastructureManagementTool from "../tools/InfrastructureManagementTool";
 import SectorRFTool from "../tools/SectorRFTool";
-import DataHub from "../tools/DataHub";
+// import DataHub from "../tools/DataHub";
 import GlobalSearch from "../search/GlobalSearch";
 import MapControlsPanel from "./MapControlsPanel";
 
@@ -42,25 +42,31 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
   const [activeTool, setActiveTool] = useState<GISToolType | null>(null);
   const [showGISDropdown, setShowGISDropdown] = useState(false);
   const [showLayersDropdown, setShowLayersDropdown] = useState(false);
-  const [showDataHub, setShowDataHub] = useState(false);
+  // const [showDataHub, setShowDataHub] = useState(false);
   const gisDropdownRef = React.useRef<HTMLDivElement>(null);
   const layersDropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (gisDropdownRef.current && !gisDropdownRef.current.contains(event.target as Node)) {
+      if (
+        gisDropdownRef.current &&
+        !gisDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowGISDropdown(false);
       }
-      if (layersDropdownRef.current && !layersDropdownRef.current.contains(event.target as Node)) {
+      if (
+        layersDropdownRef.current &&
+        !layersDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowLayersDropdown(false);
       }
     };
 
     if (showGISDropdown || showLayersDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener("mousedown", handleClickOutside);
       };
     }
   }, [showGISDropdown, showLayersDropdown]);
@@ -109,10 +115,10 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
     setShowGISDropdown(false);
   };
 
-  const handleDataHub = () => {
-    setShowDataHub(true);
-    setShowGISDropdown(false);
-  };
+  // const handleDataHub = () => {
+  //   setShowDataHub(true);
+  //   setShowGISDropdown(false);
+  // };
 
   const closeTool = () => {
     setActiveTool(null);
@@ -234,13 +240,13 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
                   </button>
                 ))}
                 <div className="border-t border-gray-200 dark:border-gray-700" />
-                <button
+                {/* <button
                   onClick={handleDataHub}
                   className="w-full px-4 py-3 text-left flex items-center gap-3 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   <span className="text-xl">💾</span>
                   <span className="text-sm font-medium">Data Hub</span>
-                </button>
+                </button> */}
               </div>
             )}
           </div>
@@ -329,17 +335,43 @@ const MapToolbar: React.FC<MapToolbarProps> = ({
       </div>
 
       {/* Tool Components */}
-      {activeTool === "distance" && <DistanceMeasurementTool map={map} onSave={onDataSaved} onClose={closeTool} />}
-      {activeTool === "polygon" && <PolygonDrawingTool map={map} onSave={onDataSaved} onClose={closeTool} />}
-      {activeTool === "circle" && <CircleDrawingTool map={map} onSave={onDataSaved} onClose={closeTool} />}
-      {activeTool === "elevation" && <ElevationProfileTool map={map} onSave={onDataSaved} onClose={closeTool} />}
+      {activeTool === "distance" && (
+        <DistanceMeasurementTool
+          map={map}
+          onSave={onDataSaved}
+          onClose={closeTool}
+        />
+      )}
+      {activeTool === "polygon" && (
+        <PolygonDrawingTool
+          map={map}
+          onSave={onDataSaved}
+          onClose={closeTool}
+        />
+      )}
+      {activeTool === "circle" && (
+        <CircleDrawingTool map={map} onSave={onDataSaved} onClose={closeTool} />
+      )}
+      {activeTool === "elevation" && (
+        <ElevationProfileTool
+          map={map}
+          onSave={onDataSaved}
+          onClose={closeTool}
+        />
+      )}
       {activeTool === "infrastructure" && (
-        <InfrastructureManagementTool map={map} onSave={onDataSaved} onClose={closeTool} />
+        <InfrastructureManagementTool
+          map={map}
+          onSave={onDataSaved}
+          onClose={closeTool}
+        />
       )}
-      {activeTool === "sectorRF" && <SectorRFTool map={map} onSave={onDataSaved} onClose={closeTool} />}
-      {showDataHub && (
+      {activeTool === "sectorRF" && (
+        <SectorRFTool map={map} onSave={onDataSaved} onClose={closeTool} />
+      )}
+      {/* {showDataHub && (
         <DataHub map={map} onClose={() => setShowDataHub(false)} />
-      )}
+      )} */}
     </>
   );
 };

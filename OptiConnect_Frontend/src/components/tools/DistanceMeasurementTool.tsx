@@ -264,6 +264,29 @@ const DistanceMeasurementTool: React.FC<DistanceMeasurementToolProps> = ({
   };
 
   /**
+   * Calculate distance between two points using Haversine formula (fallback)
+   * Returns distance in meters
+   */
+  const calculateHaversineDistance = (
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+  ): number => {
+    const R = 6371000; // Earth's radius in meters
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLng = (lng2 - lng1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  /**
    * Calculate distances between all points and add real-time labels on map
    */
   const calculateDistancesWithLabels = () => {
@@ -279,13 +302,38 @@ const DistanceMeasurementTool: React.FC<DistanceMeasurementToolProps> = ({
     const newLabels: google.maps.Marker[] = [];
 
     for (let i = 0; i < points.length - 1; i++) {
-      const from = new google.maps.LatLng(points[i].lat, points[i].lng);
-      const to = new google.maps.LatLng(points[i + 1].lat, points[i + 1].lng);
-
-      const distance = google.maps.geometry.spherical.computeDistanceBetween(
-        from,
-        to
-      );
+      // Try using Google's geometry API first, fallback to Haversine formula
+      let distance: number;
+      try {
+        if (
+          google.maps.geometry &&
+          google.maps.geometry.spherical &&
+          google.maps.geometry.spherical.computeDistanceBetween
+        ) {
+          const from = new google.maps.LatLng(points[i].lat, points[i].lng);
+          const to = new google.maps.LatLng(points[i + 1].lat, points[i + 1].lng);
+          distance = google.maps.geometry.spherical.computeDistanceBetween(
+            from,
+            to
+          );
+        } else {
+          // Fallback to Haversine formula
+          distance = calculateHaversineDistance(
+            points[i].lat,
+            points[i].lng,
+            points[i + 1].lat,
+            points[i + 1].lng
+          );
+        }
+      } catch (error) {
+        console.warn("Google Geometry API not available, using Haversine formula");
+        distance = calculateHaversineDistance(
+          points[i].lat,
+          points[i].lng,
+          points[i + 1].lat,
+          points[i + 1].lng
+        );
+      }
 
       newSegments.push({
         distance,

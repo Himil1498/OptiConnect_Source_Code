@@ -264,6 +264,161 @@ const ViewOnMapDetails: React.FC<ViewOnMapDetailsProps> = ({
           </div>
         );
 
+      case 'infrastructure':
+        return (
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                🏗️ {data.item_name || 'Infrastructure'}
+              </h3>
+            </div>
+
+            <div className="space-y-2">
+              {/* Type & Status */}
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Type:</span>
+                <span className={`text-sm font-semibold px-2 py-1 rounded ${
+                  data.item_type === 'POP'
+                    ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                    : 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                }`}>
+                  {data.item_type || 'N/A'}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Status:</span>
+                <span className={`text-sm font-semibold px-2 py-1 rounded ${
+                  data.status === 'Active'
+                    ? 'bg-green-100 text-green-700'
+                    : data.status === 'Inactive'
+                    ? 'bg-gray-100 text-gray-700'
+                    : data.status === 'Maintenance'
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {data.status || 'N/A'}
+                </span>
+              </div>
+
+              {/* Source */}
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Source:</span>
+                <span className={`text-sm font-semibold px-2 py-1 rounded ${
+                  data.source === 'KML'
+                    ? 'bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400'
+                    : 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
+                }`}>
+                  {data.source || 'Manual'}
+                </span>
+              </div>
+
+              {/* IDs */}
+              {data.unique_id && (
+                <div className="py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-1">Unique ID:</span>
+                  <span className="text-xs font-mono text-gray-900 dark:text-white">
+                    {data.unique_id}
+                  </span>
+                </div>
+              )}
+
+              {data.network_id && (
+                <div className="py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-1">Network ID:</span>
+                  <span className="text-xs font-mono text-gray-900 dark:text-white">
+                    {data.network_id}
+                  </span>
+                </div>
+              )}
+
+              {/* Coordinates */}
+              <div className="py-2 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-1">Location:</span>
+                <span className="text-xs font-mono text-gray-900 dark:text-white">
+                  {Number(data.latitude).toFixed(6)}, {Number(data.longitude).toFixed(6)}
+                </span>
+              </div>
+
+              {/* Contact Info */}
+              {(data.contact_name || data.contact_phone) && (
+                <div className="py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-1">Contact:</span>
+                  <div className="text-sm text-gray-900 dark:text-white">
+                    {data.contact_name && <div>{data.contact_name}</div>}
+                    {data.contact_phone && <div className="text-xs">{data.contact_phone}</div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Address */}
+              {(data.address_street || data.address_city || data.address_state) && (
+                <div className="py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-1">Address:</span>
+                  <div className="text-xs text-gray-900 dark:text-white">
+                    {data.address_street && <div>{data.address_street}</div>}
+                    {(data.address_city || data.address_state) && (
+                      <div>
+                        {data.address_city}{data.address_city && data.address_state && ', '}{data.address_state}
+                        {data.address_pincode && ` - ${data.address_pincode}`}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Technical Details */}
+              {data.structure_type && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Structure:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {data.structure_type}
+                  </span>
+                </div>
+              )}
+
+              {data.height && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Height:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {data.height} m
+                  </span>
+                </div>
+              )}
+
+              {data.bandwidth && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Bandwidth:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {data.bandwidth}
+                  </span>
+                </div>
+              )}
+
+              {/* Rental Information */}
+              {data.is_rented && (
+                <div className="py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-1">Rental:</span>
+                  <div className="text-sm text-gray-900 dark:text-white">
+                    {data.rent_amount && <div>₹{data.rent_amount}/month</div>}
+                    {data.landlord_name && <div className="text-xs">Landlord: {data.landlord_name}</div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {data.notes && (
+                <div className="py-2">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-1">Notes:</span>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 italic">
+                    {data.notes}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
       default:
         return <div className="text-sm text-gray-500 dark:text-gray-400">No details available</div>;
     }

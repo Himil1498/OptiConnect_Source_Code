@@ -184,6 +184,8 @@ export interface Infrastructure {
   };
   landlordName?: string;
   landlordContact?: string;
+  natureOfBusiness?: string;
+  owner?: string;
 
   // Technical Details
   structureType: 'Tower' | 'Building' | 'Ground' | 'Rooftop' | 'Other';
@@ -192,7 +194,6 @@ export interface Infrastructure {
   upsCapacity?: string;
   backupCapacity: string; // battery backup hours or KVA
   powerSource: 'Grid' | 'Solar' | 'Hybrid' | 'Generator';
-  natureOfBusiness?: string; // e.g., "LBO", "Enterprise", etc.
 
   // Equipment Details
   equipmentList?: Array<{

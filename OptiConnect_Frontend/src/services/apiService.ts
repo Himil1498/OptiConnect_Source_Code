@@ -1,32 +1,37 @@
-import axios from 'axios';
-import type { User } from '../types/auth.types';
-import type { TelecomTower, NetworkCoverage } from '../store/slices/dataSlice';
-import type { AnalyticsMetric, PerformanceData } from '../store/slices/analyticsSlice';
+import axios from "axios";
+import type { User } from "../types/auth.types";
+import type { TelecomTower, NetworkCoverage } from "../store/slices/dataSlice";
+import type {
+  AnalyticsMetric,
+  PerformanceData
+} from "../store/slices/analyticsSlice";
 
 // API Configuration - ALWAYS USE BACKEND
-const BACKEND_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const BACKEND_API_URL =
+  process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
 const API_CONFIG = {
   development: {
     baseURL: BACKEND_API_URL,
-    timeout: 10000,
+    timeout: 10000
   },
   production: {
-    baseURL: process.env.REACT_APP_API_URL || 'https://api.opticonnect.com',
-    timeout: 30000,
-  },
+    baseURL: process.env.REACT_APP_API_URL || "https://api.opticonnect.com",
+    timeout: 30000
+  }
 };
 
 // Get current environment configuration
-const config = process.env.NODE_ENV === 'production'
-  ? API_CONFIG.production
-  : API_CONFIG.development;
+const config =
+  process.env.NODE_ENV === "production"
+    ? API_CONFIG.production
+    : API_CONFIG.development;
 
 // Log API configuration (for debugging)
-console.log('🔧 API Configuration:', {
+console.log("🔧 API Configuration:", {
   baseURL: config.baseURL,
   environment: process.env.NODE_ENV,
-  mode: 'BACKEND ONLY'
+  mode: "BACKEND ONLY"
 });
 
 // Create axios instance
@@ -34,23 +39,25 @@ const apiClient = axios.create({
   baseURL: config.baseURL,
   timeout: config.timeout,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  },
+    "Content-Type": "application/json",
+    Accept: "application/json"
+  }
 });
 
 // Request interceptor for authentication
 apiClient.interceptors.request.use(
   (config: any) => {
-    const token = sessionStorage.getItem('opti_connect_token');
+    const token = sessionStorage.getItem("opti_connect_token");
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
     // Add request ID for tracking
     if (config.headers) {
-      config.headers['X-Request-ID'] = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      config.headers['X-Request-Time'] = new Date().toISOString();
+      config.headers["X-Request-ID"] = `req_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+      config.headers["X-Request-Time"] = new Date().toISOString();
     }
 
     return config;
@@ -71,24 +78,26 @@ apiClient.interceptors.response.use(
       // Unauthorized - LOG ONLY, DO NOT AUTO-LOGOUT
       // Let the calling code decide whether to logout
       // This prevents auto-logout on token refresh/verification failures
-      console.warn('⚠️ 401 Unauthorized - Request failed but session remains active');
-      console.warn('Request URL:', error.config?.url);
+      console.warn(
+        "⚠️ 401 Unauthorized - Request failed but session remains active"
+      );
+      console.warn("Request URL:", error.config?.url);
 
       // ONLY logout on login endpoint failures (not token verify/refresh)
-      if (error.config?.url?.includes('/auth/login')) {
-        console.error('Login failed');
+      if (error.config?.url?.includes("/auth/login")) {
+        console.error("Login failed");
       }
       // DO NOT clear storage or redirect - let session persist
     }
 
     if (error.response?.status === 403) {
       // Forbidden - show permission error
-      console.error('Access forbidden:', error.response.data);
+      console.error("Access forbidden:", error.response.data);
     }
 
     if (error.response?.status >= 500) {
       // Server error - show generic error message
-      console.error('Server error:', error.response.data);
+      console.error("Server error:", error.response.data);
     }
 
     return Promise.reject(error);
@@ -146,74 +155,79 @@ interface BackendLoginResponse {
 // Mock data for development
 const MOCK_TOWERS: TelecomTower[] = [
   {
-    id: 'tower_001',
-    name: 'Delhi Central Tower',
-    type: 'cell_tower',
-    position: { lat: 28.6139, lng: 77.2090 },
-    status: 'active',
-    company: 'Jio',
+    id: "tower_001",
+    name: "Delhi Central Tower",
+    type: "cell_tower",
+    position: { lat: 28.6139, lng: 77.209 },
+    status: "active",
+    company: "Jio",
     height: 45,
-    frequency: ['1800MHz', '2300MHz'],
+    frequency: ["1800MHz", "2300MHz"],
     coverage_radius: 2000,
-    installation_date: '2020-03-15',
-    last_maintenance: '2024-08-15',
+    installation_date: "2020-03-15",
+    last_maintenance: "2024-08-15",
     technical_specs: {
-      power: '250W',
-      antenna_gain: '18dBi',
-      technology: '4G/5G',
+      power: "250W",
+      antenna_gain: "18dBi",
+      technology: "4G/5G"
     },
-    metadata: {},
+    metadata: {}
   },
   {
-    id: 'tower_002',
-    name: 'Mumbai BKC Tower',
-    type: 'base_station',
-    position: { lat: 19.0760, lng: 72.8777 },
-    status: 'active',
-    company: 'Airtel',
+    id: "tower_002",
+    name: "Mumbai BKC Tower",
+    type: "base_station",
+    position: { lat: 19.076, lng: 72.8777 },
+    status: "active",
+    company: "Airtel",
     height: 60,
-    frequency: ['900MHz', '1800MHz', '2100MHz'],
+    frequency: ["900MHz", "1800MHz", "2100MHz"],
     coverage_radius: 3000,
-    installation_date: '2019-11-20',
-    last_maintenance: '2024-07-10',
+    installation_date: "2019-11-20",
+    last_maintenance: "2024-07-10",
     technical_specs: {
-      power: '500W',
-      antenna_gain: '20dBi',
-      technology: '3G/4G/5G',
+      power: "500W",
+      antenna_gain: "20dBi",
+      technology: "3G/4G/5G"
     },
-    metadata: {},
-  },
+    metadata: {}
+  }
 ];
 
 class ApiService {
   // Authentication
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     // Always use real backend authentication
-    console.log('🔄 Attempting backend authentication...');
+    console.log("🔄 Attempting backend authentication...");
     try {
-      const response = await apiClient.post<BackendLoginResponse>('/auth/login', {
-        email: credentials.email,
-        password: credentials.password
-      });
+      const response = await apiClient.post<BackendLoginResponse>(
+        "/auth/login",
+        {
+          email: credentials.email,
+          password: credentials.password
+        }
+      );
 
-      console.log('✅ Backend login successful:', response.data);
+      console.log("✅ Backend login successful:", response.data);
 
       // Transform backend response to match frontend format
       const backendData: BackendLoginResponse = response.data;
 
       // Map backend role to frontend role types
-      const mapRole = (backendRole?: string): 'Admin' | 'Manager' | 'Technician' | 'User' => {
+      const mapRole = (
+        backendRole?: string
+      ): "Admin" | "Manager" | "Technician" | "User" => {
         const role = backendRole?.toLowerCase();
         switch (role) {
-          case 'admin':
-            return 'Admin';
-          case 'manager':
-            return 'Manager';
-          case 'technician':
-          case 'engineer':
-            return 'Technician';
+          case "admin":
+            return "Admin";
+          case "manager":
+            return "Manager";
+          case "technician":
+          case "engineer":
+            return "Technician";
           default:
-            return 'User';
+            return "User";
         }
       };
 
@@ -224,50 +238,71 @@ class ApiService {
           name: backendData.user.full_name || backendData.user.username,
           username: backendData.user.username,
           role: mapRole(backendData.user.role),
-          company: credentials.company || 'OptiConnect',
-          permissions: ['all'], // You can map this from backend later
+          company: credentials.company || "OptiConnect",
+          permissions: ["all"], // You can map this from backend later
           lastLogin: new Date().toISOString(),
-          password: '********',
-          gender: 'Other',
-          phoneNumber: backendData.user.phone || '',
+          password: "********",
+          gender: "Other",
+          phoneNumber: backendData.user.phone || "",
           address: {
-            street: '',
-            city: '',
-            state: '',
-            pincode: ''
+            street: "",
+            city: "",
+            state: "",
+            pincode: ""
           },
-          officeLocation: backendData.user.department || '',
+          officeLocation: backendData.user.department || "",
           assignedUnder: [],
-          assignedRegions: backendData.user.assignedRegions || backendData.user.regions || [],
+          assignedRegions:
+            backendData.user.assignedRegions || backendData.user.regions || [],
           groups: [],
-          status: backendData.user.is_active ? 'Active' : 'Inactive',
-          loginHistory: [],
+          status: backendData.user.is_active ? "Active" : "Inactive",
+          loginHistory: []
         },
         token: backendData.token,
         refreshToken: backendData.token, // Backend uses same token for now
-        expiresIn: 7200, // 2 hours as per backend config
+        expiresIn: 7200 // 2 hours as per backend config
       };
     } catch (error: any) {
-      console.error('❌ Backend login failed:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.message || 'Login failed');
+      console.error(
+        "❌ Backend login failed:",
+        error.response?.data || error.message
+      );
+      throw new Error(error.response?.data?.message || "Login failed");
     }
   }
 
   async logout(token: string): Promise<void> {
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return Promise.resolve();
     }
 
-    await apiClient.post('/auth/logout', { token });
+    await apiClient.post("/auth/logout", { token });
+  }
+
+  async changePassword(
+    oldPassword: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+    }>("/auth/change-password", {
+      oldPassword,
+      newPassword
+    });
+    return response.data;
   }
 
   async refreshToken(token: string): Promise<string> {
     // ALWAYS use backend - never return mock tokens
     try {
-      const response = await apiClient.post<ApiResponse<{ token: string }>>('/auth/refresh', { token });
+      const response = await apiClient.post<ApiResponse<{ token: string }>>(
+        "/auth/refresh",
+        { token }
+      );
       return response.data.data.token;
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      console.error("Token refresh failed:", error);
       // Return the same token if refresh fails (non-critical)
       return token;
     }
@@ -276,7 +311,7 @@ class ApiService {
   async verifyToken(token: string): Promise<boolean> {
     // ALWAYS use backend - never bypass verification
     try {
-      await apiClient.get('/auth/verify', {
+      await apiClient.get("/auth/verify", {
         headers: { Authorization: `Bearer ${token}` }
       });
       return true;
@@ -287,52 +322,66 @@ class ApiService {
 
   // Tower Data Management
   async getTowers(filters?: any): Promise<TelecomTower[]> {
-    if (process.env.NODE_ENV === 'development') {
-      await new Promise(resolve => setTimeout(resolve, 500));
+    if (process.env.NODE_ENV === "development") {
+      await new Promise((resolve) => setTimeout(resolve, 500));
       return MOCK_TOWERS;
     }
 
-    const response = await apiClient.get<ApiResponse<TelecomTower[]>>('/towers', { params: filters });
+    const response = await apiClient.get<ApiResponse<TelecomTower[]>>(
+      "/towers",
+      { params: filters }
+    );
     return response.data.data;
   }
 
   async getTowerById(id: string): Promise<TelecomTower> {
-    if (process.env.NODE_ENV === 'development') {
-      const tower = MOCK_TOWERS.find(t => t.id === id);
-      if (!tower) throw new Error('Tower not found');
+    if (process.env.NODE_ENV === "development") {
+      const tower = MOCK_TOWERS.find((t) => t.id === id);
+      if (!tower) throw new Error("Tower not found");
       return tower;
     }
 
-    const response = await apiClient.get<ApiResponse<TelecomTower>>(`/towers/${id}`);
+    const response = await apiClient.get<ApiResponse<TelecomTower>>(
+      `/towers/${id}`
+    );
     return response.data.data;
   }
 
-  async createTower(tower: Omit<TelecomTower, 'id'>): Promise<TelecomTower> {
-    if (process.env.NODE_ENV === 'development') {
+  async createTower(tower: Omit<TelecomTower, "id">): Promise<TelecomTower> {
+    if (process.env.NODE_ENV === "development") {
       const newTower: TelecomTower = {
         ...tower,
-        id: `tower_${Date.now()}`,
+        id: `tower_${Date.now()}`
       };
       return newTower;
     }
 
-    const response = await apiClient.post<ApiResponse<TelecomTower>>('/towers', tower);
+    const response = await apiClient.post<ApiResponse<TelecomTower>>(
+      "/towers",
+      tower
+    );
     return response.data.data;
   }
 
-  async updateTower(id: string, updates: Partial<TelecomTower>): Promise<TelecomTower> {
-    if (process.env.NODE_ENV === 'development') {
-      const existingTower = MOCK_TOWERS.find(t => t.id === id);
-      if (!existingTower) throw new Error('Tower not found');
+  async updateTower(
+    id: string,
+    updates: Partial<TelecomTower>
+  ): Promise<TelecomTower> {
+    if (process.env.NODE_ENV === "development") {
+      const existingTower = MOCK_TOWERS.find((t) => t.id === id);
+      if (!existingTower) throw new Error("Tower not found");
       return { ...existingTower, ...updates };
     }
 
-    const response = await apiClient.put<ApiResponse<TelecomTower>>(`/towers/${id}`, updates);
+    const response = await apiClient.put<ApiResponse<TelecomTower>>(
+      `/towers/${id}`,
+      updates
+    );
     return response.data.data;
   }
 
   async deleteTower(id: string): Promise<void> {
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return Promise.resolve();
     }
 
@@ -341,62 +390,89 @@ class ApiService {
 
   // Coverage Data
   async getCoverage(towerId?: string): Promise<NetworkCoverage[]> {
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return [];
     }
 
     const params = towerId ? { towerId } : {};
-    const response = await apiClient.get<ApiResponse<NetworkCoverage[]>>('/coverage', { params });
+    const response = await apiClient.get<ApiResponse<NetworkCoverage[]>>(
+      "/coverage",
+      { params }
+    );
     return response.data.data;
   }
 
   // Analytics Data
-  async getAnalytics(timeRange: { start: string; end: string }): Promise<AnalyticsMetric[]> {
-    if (process.env.NODE_ENV === 'development') {
+  async getAnalytics(timeRange: {
+    start: string;
+    end: string;
+  }): Promise<AnalyticsMetric[]> {
+    if (process.env.NODE_ENV === "development") {
       return [];
     }
 
-    const response = await apiClient.get<ApiResponse<AnalyticsMetric[]>>('/analytics', { params: timeRange });
+    const response = await apiClient.get<ApiResponse<AnalyticsMetric[]>>(
+      "/analytics",
+      { params: timeRange }
+    );
     return response.data.data;
   }
 
-  async getPerformanceData(timeRange: { start: string; end: string }): Promise<PerformanceData[]> {
-    if (process.env.NODE_ENV === 'development') {
+  async getPerformanceData(timeRange: {
+    start: string;
+    end: string;
+  }): Promise<PerformanceData[]> {
+    if (process.env.NODE_ENV === "development") {
       return [];
     }
 
-    const response = await apiClient.get<ApiResponse<PerformanceData[]>>('/analytics/performance', { params: timeRange });
+    const response = await apiClient.get<ApiResponse<PerformanceData[]>>(
+      "/analytics/performance",
+      { params: timeRange }
+    );
     return response.data.data;
   }
 
   // File Upload/Import
-  async uploadFile(file: File, type: 'towers' | 'coverage' | 'analytics'): Promise<{ jobId: string }> {
+  async uploadFile(
+    file: File,
+    type: "towers" | "coverage" | "analytics"
+  ): Promise<{ jobId: string }> {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', type);
+    formData.append("file", file);
+    formData.append("type", type);
 
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return { jobId: `job_${Date.now()}` };
     }
 
-    const response = await apiClient.post<ApiResponse<{ jobId: string }>>('/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await apiClient.post<ApiResponse<{ jobId: string }>>(
+      "/upload",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      }
+    );
 
     return response.data.data;
   }
 
   // Export Data
-  async exportData(type: 'towers' | 'coverage' | 'analytics', format: 'csv' | 'excel' | 'json', filters?: any): Promise<Blob> {
-    if (process.env.NODE_ENV === 'development') {
-      return new Blob(['mock,data\n1,test'], { type: 'text/csv' });
+  async exportData(
+    type: "towers" | "coverage" | "analytics",
+    format: "csv" | "excel" | "json",
+    filters?: any
+  ): Promise<Blob> {
+    if (process.env.NODE_ENV === "development") {
+      return new Blob(["mock,data\n1,test"], { type: "text/csv" });
     }
 
-    const response = await apiClient.post(`/export/${type}`,
+    const response = await apiClient.post(
+      `/export/${type}`,
       { format, filters },
-      { responseType: 'blob' }
+      { responseType: "blob" }
     );
 
     return response.data as Blob;
@@ -405,183 +481,315 @@ class ApiService {
   // User Management APIs
   async getUsers(filters?: any): Promise<User[]> {
     // Always use backend - no mock mode
-    if (process.env.NODE_ENV === 'development' && false) {  // Disabled mock mode
-      await new Promise(resolve => setTimeout(resolve, 500));
+    if (process.env.NODE_ENV === "development" && false) {
+      // Disabled mock mode
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Mock users data (DISABLED)
       return [
         {
-          id: 'USER001',
-          username: 'admin_raj',
-          name: 'Rajesh Kumar',
-          email: 'rajesh.kumar@jio.com',
-          password: '********',
-          gender: 'Male',
-          phoneNumber: '+91-9876543210',
+          id: "USER001",
+          username: "admin_raj",
+          name: "Rajesh Kumar",
+          email: "rajesh.kumar@jio.com",
+          password: "********",
+          gender: "Male",
+          phoneNumber: "+91-9876543210",
           address: {
-            street: '123 Tech Park',
-            city: 'Mumbai',
-            state: 'Maharashtra',
-            pincode: '400001'
+            street: "123 Tech Park",
+            city: "Mumbai",
+            state: "Maharashtra",
+            pincode: "400001"
           },
-          officeLocation: 'Mumbai HQ',
+          officeLocation: "Mumbai HQ",
           assignedUnder: [],
-          role: 'Admin',
-          assignedRegions: ['Maharashtra', 'Gujarat'],
+          role: "Admin",
+          assignedRegions: ["Maharashtra", "Gujarat"],
           groups: [],
-          status: 'Active',
+          status: "Active",
           loginHistory: [
-            { timestamp: new Date('2024-01-15T10:30:00'), location: 'Mumbai, India' }
+            {
+              timestamp: new Date("2024-01-15T10:30:00"),
+              location: "Mumbai, India"
+            }
           ],
-          company: 'Jio',
-          permissions: ['all'],
+          company: "Jio",
+          permissions: ["all"]
         },
         {
-          id: 'USER002',
-          username: 'manager_priya',
-          name: 'Priya Sharma',
-          email: 'priya.sharma@airtel.com',
-          password: '********',
-          gender: 'Female',
-          phoneNumber: '+91-9876543211',
+          id: "USER002",
+          username: "manager_priya",
+          name: "Priya Sharma",
+          email: "priya.sharma@airtel.com",
+          password: "********",
+          gender: "Female",
+          phoneNumber: "+91-9876543211",
           address: {
-            street: '456 Business District',
-            city: 'Delhi',
-            state: 'Delhi',
-            pincode: '110001'
+            street: "456 Business District",
+            city: "Delhi",
+            state: "Delhi",
+            pincode: "110001"
           },
-          officeLocation: 'Delhi Regional Office',
-          assignedUnder: ['USER001'],
-          role: 'Manager',
-          assignedRegions: ['Delhi', 'Punjab', 'Haryana'],
+          officeLocation: "Delhi Regional Office",
+          assignedUnder: ["USER001"],
+          role: "Manager",
+          assignedRegions: ["Delhi", "Punjab", "Haryana"],
           groups: [],
-          status: 'Active',
+          status: "Active",
           loginHistory: [
-            { timestamp: new Date('2024-01-15T09:45:00'), location: 'Delhi, India' }
+            {
+              timestamp: new Date("2024-01-15T09:45:00"),
+              location: "Delhi, India"
+            }
           ],
-          company: 'Airtel',
-          permissions: ['read', 'write', 'manage_team'],
-        },
+          company: "Airtel",
+          permissions: ["read", "write", "manage_team"]
+        }
       ];
     }
 
-    const response = await apiClient.get<ApiResponse<User[]>>('/users', { params: filters });
+    const response = await apiClient.get<ApiResponse<User[]>>("/users", {
+      params: filters
+    });
     return response.data.data;
   }
 
   async getUserById(id: string): Promise<User> {
-    if (process.env.NODE_ENV === 'development') {
-      throw new Error('User not found');
+    if (process.env.NODE_ENV === "development") {
+      throw new Error("User not found");
     }
 
     const response = await apiClient.get<ApiResponse<User>>(`/users/${id}`);
     return response.data.data;
   }
 
-  async createUser(user: Omit<User, 'id' | 'loginHistory'>): Promise<User> {
-    if (process.env.NODE_ENV === 'development') {
+  async createUser(user: Omit<User, "id" | "loginHistory">): Promise<User> {
+    if (process.env.NODE_ENV === "development") {
       const newUser: User = {
         ...user,
-        id: `USER${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
-        loginHistory: [],
+        id: `USER${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`,
+        loginHistory: []
       };
       return newUser;
     }
 
-    const response = await apiClient.post<ApiResponse<User>>('/users', user);
+    const response = await apiClient.post<ApiResponse<User>>("/users", user);
     return response.data.data;
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return { id, ...updates } as User;
     }
 
-    const response = await apiClient.put<ApiResponse<User>>(`/users/${id}`, updates);
+    const response = await apiClient.put<ApiResponse<User>>(
+      `/users/${id}`,
+      updates
+    );
     return response.data.data;
   }
 
   async deleteUser(id: string): Promise<void> {
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return Promise.resolve();
     }
 
     await apiClient.delete(`/users/${id}`);
   }
 
-  async bulkUpdateUsers(userIds: string[], updates: Partial<User>): Promise<void> {
-    if (process.env.NODE_ENV === 'development') {
+  async bulkUpdateUsers(
+    userIds: string[],
+    updates: Partial<User>
+  ): Promise<void> {
+    if (process.env.NODE_ENV === "development") {
       return Promise.resolve();
     }
 
-    await apiClient.post('/users/bulk-update', { userIds, updates });
+    await apiClient.post("/users/bulk-update", { userIds, updates });
   }
 
   async bulkDeleteUsers(userIds: string[]): Promise<void> {
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return Promise.resolve();
     }
 
-    await apiClient.post('/users/bulk-delete', { userIds });
+    await apiClient.post("/users/bulk-delete", { userIds });
   }
 
-  async exportUsers(format: 'csv' | 'excel' | 'json', filters?: any): Promise<Blob> {
-    if (process.env.NODE_ENV === 'development') {
-      return new Blob(['user,email\nTest User,test@example.com'], { type: 'text/csv' });
+  async exportUsers(
+    format: "csv" | "excel" | "json",
+    filters?: any
+  ): Promise<Blob> {
+    if (process.env.NODE_ENV === "development") {
+      return new Blob(["user,email\nTest User,test@example.com"], {
+        type: "text/csv"
+      });
     }
 
-    const response = await apiClient.post(`/users/export`,
+    const response = await apiClient.post(
+      `/users/export`,
       { format, filters },
-      { responseType: 'blob' }
+      { responseType: "blob" }
     );
 
     return response.data as Blob;
   }
 
-  async importUsers(file: File): Promise<{ success: number; failed: number; errors: string[] }> {
+  async importUsers(
+    file: File
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return { success: 10, failed: 0, errors: [] };
     }
 
-    const response = await apiClient.post<ApiResponse<{ success: number; failed: number; errors: string[] }>>(
-      '/users/import',
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+    const response = await apiClient.post<
+      ApiResponse<{ success: number; failed: number; errors: string[] }>
+    >("/users/import", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data"
       }
-    );
+    });
 
     return response.data.data;
   }
 
-  async resetPassword(userId: string, newPassword?: string): Promise<{ temporaryPassword?: string }> {
-    if (process.env.NODE_ENV === 'development') {
-      return { temporaryPassword: 'Temp123!' };
-    }
+  async resetPassword(
+    userId: string,
+    newPassword?: string
+  ): Promise<{ temporaryPassword?: string }> {
+    // Extract numeric ID from OCGID format (OCGID001 -> 1)
+    const numericId = userId.startsWith('OCGID')
+      ? userId.replace('OCGID', '').replace(/^0+/, '') || '0'
+      : userId;
 
-    const response = await apiClient.post<ApiResponse<{ temporaryPassword?: string }>>(
-      `/users/${userId}/reset-password`,
-      { newPassword }
+    console.log("🔧 resetPassword called with:", {
+      userId,
+      numericId,
+      hasPassword: !!newPassword,
+      passwordLength: newPassword?.length
+    });
+    console.log("🔧 Making API call to:", `/users/${numericId}/reset-password`);
+
+    const response = await apiClient.post<
+      ApiResponse<{ temporaryPassword?: string }>
+    >(`/users/${numericId}/reset-password`, { newPassword });
+
+    console.log("🔧 API response:", response.data);
+    return response.data.data;
+  }
+
+  // Infrastructure Management APIs
+  async getAllInfrastructure(filters?: {
+    regionId?: number;
+    item_type?: string;
+    status?: string;
+    source?: string;
+    search?: string;
+  }): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>("/infrastructure", {
+      params: filters
+    });
+    return response.data.data;
+  }
+
+  async getInfrastructureById(id: number | string): Promise<any> {
+    const response = await apiClient.get<ApiResponse<any>>(`/infrastructure/${id}`);
+    return response.data.data;
+  }
+
+  async createInfrastructure(data: any): Promise<any> {
+    const response = await apiClient.post<ApiResponse<any>>("/infrastructure", data);
+    return response.data.data;
+  }
+
+  async updateInfrastructure(id: number | string, data: any): Promise<any> {
+    const response = await apiClient.put<ApiResponse<any>>(`/infrastructure/${id}`, data);
+    return response.data;
+  }
+
+  async deleteInfrastructure(id: number | string): Promise<void> {
+    await apiClient.delete(`/infrastructure/${id}`);
+  }
+
+  async importKML(kmlData: string, filename: string): Promise<{
+    importSessionId: string;
+    itemCount: number;
+    items: any[];
+  }> {
+    const response = await apiClient.post<ApiResponse<{
+      importSessionId: string;
+      itemCount: number;
+      items: any[];
+    }>>("/infrastructure/import/kml", { kmlData, filename });
+    return response.data.data;
+  }
+
+  async getImportPreview(sessionId: string): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>(
+      `/infrastructure/import/${sessionId}/preview`
     );
+    return response.data.data;
+  }
 
+  async saveImportedItems(sessionId: string, selectedIds?: number[]): Promise<{
+    count: number;
+  }> {
+    const response = await apiClient.post<ApiResponse<{ count: number }>>(
+      `/infrastructure/import/${sessionId}/save`,
+      { selectedIds }
+    );
+    return response.data.data;
+  }
+
+  async deleteImportSession(sessionId: string): Promise<void> {
+    await apiClient.delete(`/infrastructure/import/${sessionId}`);
+  }
+
+  async getInfrastructureStats(): Promise<{
+    total: number;
+    pop_count: number;
+    subpop_count: number;
+    kml_count: number;
+    manual_count: number;
+    active_count: number;
+    inactive_count: number;
+    rented_count: number;
+  }> {
+    const response = await apiClient.get<ApiResponse<{
+      total: number;
+      pop_count: number;
+      subpop_count: number;
+      kml_count: number;
+      manual_count: number;
+      active_count: number;
+      inactive_count: number;
+      rented_count: number;
+    }>>("/infrastructure/stats");
     return response.data.data;
   }
 
   // Health Check
-  async healthCheck(): Promise<{ status: string; timestamp: string; version: string }> {
+  async healthCheck(): Promise<{
+    status: string;
+    timestamp: string;
+    version: string;
+  }> {
     try {
-      const response = await apiClient.get<{ status: string; timestamp: string; version: string }>('/health');
+      const response = await apiClient.get<{
+        status: string;
+        timestamp: string;
+        version: string;
+      }>("/health");
       return response.data;
     } catch {
       return {
-        status: process.env.NODE_ENV === 'development' ? 'healthy' : 'unhealthy',
+        status:
+          process.env.NODE_ENV === "development" ? "healthy" : "unhealthy",
         timestamp: new Date().toISOString(),
-        version: '1.0.0',
+        version: "1.0.0"
       };
     }
   }
@@ -592,12 +800,20 @@ class ApiService {
     return { data: response.data };
   }
 
-  async post<T = any>(url: string, data?: any, config?: any): Promise<{ data: T }> {
+  async post<T = any>(
+    url: string,
+    data?: any,
+    config?: any
+  ): Promise<{ data: T }> {
     const response = await apiClient.post<T>(url, data, config);
     return { data: response.data };
   }
 
-  async put<T = any>(url: string, data?: any, config?: any): Promise<{ data: T }> {
+  async put<T = any>(
+    url: string,
+    data?: any,
+    config?: any
+  ): Promise<{ data: T }> {
     const response = await apiClient.put<T>(url, data, config);
     return { data: response.data };
   }
@@ -615,6 +831,7 @@ export const apiService = new ApiService();
 export const {
   login,
   logout,
+  changePassword,
   refreshToken,
   verifyToken,
   getTowers,
@@ -637,5 +854,15 @@ export const {
   exportUsers,
   importUsers,
   resetPassword,
-  healthCheck,
+  getAllInfrastructure,
+  getInfrastructureById,
+  createInfrastructure,
+  updateInfrastructure,
+  deleteInfrastructure,
+  importKML,
+  getImportPreview,
+  saveImportedItems,
+  deleteImportSession,
+  getInfrastructureStats,
+  healthCheck
 } = apiService;

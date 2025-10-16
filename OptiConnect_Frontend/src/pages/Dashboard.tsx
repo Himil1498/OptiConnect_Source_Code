@@ -36,7 +36,7 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                   OptiConnect GIS Platform
                 </h1>
                 <div className="flex items-center space-x-2 mt-1">

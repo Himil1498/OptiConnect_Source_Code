@@ -71,7 +71,7 @@ const getDefaultMapOptions = () => ({
   ],
 
   // Performance optimizations
-  gestureHandling: "cooperative",
+  gestureHandling: "greedy",
   keyboardShortcuts: false,
   clickableIcons: false
 });

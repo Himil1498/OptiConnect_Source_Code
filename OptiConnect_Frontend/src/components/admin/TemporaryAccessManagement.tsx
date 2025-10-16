@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useAppSelector } from '../../store';
+import React, { useState, useEffect } from "react";
+import { useAppSelector } from "../../store";
 import {
   grantTemporaryAccess,
   getTemporaryAccess,
@@ -9,12 +9,15 @@ import {
   deleteTemporaryGrant,
   getTemporaryAccessStats,
   getExpiringGrants
-} from '../../services/temporaryAccessService';
-import { getAllUsers } from '../../services/userService';
-import { INDIAN_STATES } from '../../utils/regionMapping';
-import type { TemporaryRegionAccess, TemporaryAccessFilter } from '../../types/temporaryAccess.types';
-import NotificationDialog from '../common/NotificationDialog';
-import DeleteConfirmationDialog from '../common/DeleteConfirmationDialog';
+} from "../../services/temporaryAccessService";
+import { getAllUsers } from "../../services/userService";
+import { INDIAN_STATES } from "../../utils/regionMapping";
+import type {
+  TemporaryRegionAccess,
+  TemporaryAccessFilter
+} from "../../types/temporaryAccess.types";
+import NotificationDialog from "../common/NotificationDialog";
+import DeleteConfirmationDialog from "../common/DeleteConfirmationDialog";
 import {
   ClockIcon,
   UserGroupIcon,
@@ -24,7 +27,7 @@ import {
   ExclamationTriangleIcon,
   TrashIcon,
   ArrowPathIcon
-} from '@heroicons/react/24/outline';
+} from "@heroicons/react/24/outline";
 
 // Simple User interface for this component
 interface SimpleUser {
@@ -37,29 +40,32 @@ interface SimpleUser {
 }
 
 const TemporaryAccessManagement: React.FC = () => {
-  const currentUser = useAppSelector(state => state.auth.user);
+  const currentUser = useAppSelector((state) => state.auth.user);
   const [grants, setGrants] = useState<TemporaryRegionAccess[]>([]);
   const [users, setUsers] = useState<SimpleUser[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Form state
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [selectedRegion, setSelectedRegion] = useState('');
-  const [expirationDate, setExpirationDate] = useState('');
-  const [reason, setReason] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState("");
+  const [expirationDate, setExpirationDate] = useState("");
+  const [reason, setReason] = useState("");
 
   // Filter state
-  const [filterUserId, setFilterUserId] = useState('');
-  const [filterRegion, setFilterRegion] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expired' | 'revoked'>('all');
+  const [filterUserId, setFilterUserId] = useState("");
+  const [filterRegion, setFilterRegion] = useState("");
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "active" | "expired" | "revoked"
+  >("all");
 
   // Modal state
   const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [revokeModalOpen, setRevokeModalOpen] = useState(false);
-  const [selectedGrant, setSelectedGrant] = useState<TemporaryRegionAccess | null>(null);
-  const [newExpirationDate, setNewExpirationDate] = useState('');
-  const [revokeReason, setRevokeReason] = useState('');
-  
+  const [selectedGrant, setSelectedGrant] =
+    useState<TemporaryRegionAccess | null>(null);
+  const [newExpirationDate, setNewExpirationDate] = useState("");
+  const [revokeReason, setRevokeReason] = useState("");
+
   // Delete dialog state
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
@@ -70,14 +76,14 @@ const TemporaryAccessManagement: React.FC = () => {
   // Notification state
   const [notification, setNotification] = useState<{
     isOpen: boolean;
-    type: 'success' | 'error' | 'warning' | 'info';
+    type: "success" | "error" | "warning" | "info";
     title: string;
     message: string;
   }>({
     isOpen: false,
-    type: 'info',
-    title: '',
-    message: ''
+    type: "info",
+    title: "",
+    message: ""
   });
 
   // Statistics
@@ -88,10 +94,12 @@ const TemporaryAccessManagement: React.FC = () => {
     revoked: 0
   });
 
-  const [expiringGrants, setExpiringGrants] = useState<TemporaryRegionAccess[]>([]);
+  const [expiringGrants, setExpiringGrants] = useState<TemporaryRegionAccess[]>(
+    []
+  );
 
   // Check if user is admin (must be after all hooks)
-  const isAdmin = currentUser && currentUser.role === 'Admin';
+  const isAdmin = currentUser && currentUser.role === "Admin";
 
   useEffect(() => {
     if (isAdmin) {
@@ -109,21 +117,33 @@ const TemporaryAccessManagement: React.FC = () => {
         const backendUsers = await getAllUsers();
         // Map backend users to User type expected by component
         const mappedUsers: SimpleUser[] = backendUsers
-          .filter((u: any) => u.id?.toString() !== currentUser?.id && u.role !== 'Admin' && u.role !== 'admin')
+          .filter(
+            (u: any) =>
+              u.id?.toString() !== currentUser?.id &&
+              u.role !== "Admin" &&
+              u.role !== "admin"
+          )
           .map((u: any) => ({
-            id: u.id?.toString() || u.user_id || '',
-            username: u.username || '',
-            name: u.full_name || u.name || u.username || '',
-            email: u.email || '',
-            role: u.role || 'User',
+            id: u.id?.toString() || u.user_id || "",
+            username: u.username || "",
+            name: u.full_name || u.name || u.username || "",
+            email: u.email || "",
+            role: u.role || "User",
             isActive: u.is_active !== undefined ? u.is_active : true
           }));
         setUsers(mappedUsers);
-        console.log('📊 Temporary Access: Loaded real users from backend:', mappedUsers.length);
+        console.log(
+          "📊 Temporary Access: Loaded real users from backend:",
+          mappedUsers.length
+        );
       } catch (error: any) {
-        console.error('Failed to load users from backend:', error);
+        console.error("Failed to load users from backend:", error);
         if (error.response?.status === 401) {
-          showNotification('error', 'Authentication Required', 'Please log in to access this page.');
+          showNotification(
+            "error",
+            "Authentication Required",
+            "Please log in to access this page."
+          );
           return;
         }
         setUsers([]);
@@ -136,12 +156,12 @@ const TemporaryAccessManagement: React.FC = () => {
       if (filterUserId) filter.userId = filterUserId;
       if (filterRegion) filter.region = filterRegion;
 
-      if (filterStatus === 'active') {
+      if (filterStatus === "active") {
         filter.isActive = true;
       }
 
       try {
-        if (filterUserId || filterRegion || filterStatus !== 'all') {
+        if (filterUserId || filterRegion || filterStatus !== "all") {
           filteredGrants = await getFilteredTemporaryAccess(filter);
         } else {
           filteredGrants = await getTemporaryAccess();
@@ -149,17 +169,23 @@ const TemporaryAccessManagement: React.FC = () => {
 
         // Additional filtering for expired/revoked
         const now = new Date();
-        if (filterStatus === 'expired') {
-          filteredGrants = filteredGrants.filter(g => !g.revokedAt && g.expiresAt < now);
-        } else if (filterStatus === 'revoked') {
-          filteredGrants = filteredGrants.filter(g => g.revokedAt);
+        if (filterStatus === "expired") {
+          filteredGrants = filteredGrants.filter(
+            (g) => !g.revokedAt && g.expiresAt < now
+          );
+        } else if (filterStatus === "revoked") {
+          filteredGrants = filteredGrants.filter((g) => g.revokedAt);
         }
 
         setGrants(filteredGrants);
       } catch (error: any) {
-        console.error('Failed to load grants:', error);
+        console.error("Failed to load grants:", error);
         if (error.response?.status === 401) {
-          showNotification('error', 'Authentication Required', 'Please log in to access temporary access data.');
+          showNotification(
+            "error",
+            "Authentication Required",
+            "Please log in to access temporary access data."
+          );
           return;
         }
         setGrants([]);
@@ -175,7 +201,7 @@ const TemporaryAccessManagement: React.FC = () => {
           revoked: tempStats.revokedGrants
         });
       } catch (error: any) {
-        console.error('Failed to load stats:', error);
+        console.error("Failed to load stats:", error);
         if (error.response?.status !== 401) {
           // Only show non-auth errors, auth error already shown
           setStats({ total: 0, active: 0, expired: 0, revoked: 0 });
@@ -187,7 +213,7 @@ const TemporaryAccessManagement: React.FC = () => {
         const expiring = await getExpiringGrants(7);
         setExpiringGrants(expiring);
       } catch (error: any) {
-        console.error('Failed to load expiring grants:', error);
+        console.error("Failed to load expiring grants:", error);
         setExpiringGrants([]);
       }
     } finally {
@@ -197,12 +223,12 @@ const TemporaryAccessManagement: React.FC = () => {
 
   const loadUsersFromLocalStorage = () => {
     try {
-      const usersData = localStorage.getItem('users');
+      const usersData = localStorage.getItem("users");
       if (usersData) {
         const parsedUsers: any[] = JSON.parse(usersData);
         const allUsers = parsedUsers
-          .filter(u => u.id !== currentUser?.id && u.role !== 'Admin')
-          .map(u => ({
+          .filter((u) => u.id !== currentUser?.id && u.role !== "Admin")
+          .map((u) => ({
             id: u.id,
             username: u.username,
             name: u.name || u.full_name || u.username,
@@ -211,33 +237,44 @@ const TemporaryAccessManagement: React.FC = () => {
             isActive: u.isActive !== undefined ? u.isActive : true
           }));
         setUsers(allUsers);
-        console.log('📊 Temporary Access: Using mock users from localStorage:', allUsers.length);
+        console.log(
+          "📊 Temporary Access: Using mock users from localStorage:",
+          allUsers.length
+        );
       }
     } catch (error) {
-      console.error('Failed to load users from localStorage:', error);
+      console.error("Failed to load users from localStorage:", error);
     }
   };
 
   const handleGrantAccess = async () => {
     if (!selectedUserId || !selectedRegion || !expirationDate || !reason) {
-      showNotification('error', 'Validation Error', 'Please fill in all required fields.');
+      showNotification(
+        "error",
+        "Validation Error",
+        "Please fill in all required fields."
+      );
       return;
     }
 
-    const targetUser = users.find(u => u.id === selectedUserId);
+    const targetUser = users.find((u) => u.id === selectedUserId);
     if (!targetUser) {
-      showNotification('error', 'Error', 'Selected user not found.');
+      showNotification("error", "Error", "Selected user not found.");
       return;
     }
 
     if (!currentUser) {
-      showNotification('error', 'Error', 'User not authenticated.');
+      showNotification("error", "Error", "User not authenticated.");
       return;
     }
 
     const expiresAt = new Date(expirationDate);
     if (expiresAt <= new Date()) {
-      showNotification('error', 'Validation Error', 'Expiration date must be in the future.');
+      showNotification(
+        "error",
+        "Validation Error",
+        "Expiration date must be in the future."
+      );
       return;
     }
 
@@ -245,23 +282,29 @@ const TemporaryAccessManagement: React.FC = () => {
     try {
       // Cast SimpleUser to any to satisfy grantTemporaryAccess which expects full User type
       // The function only needs basic user properties (id, name, email) which SimpleUser provides
-      await grantTemporaryAccess(targetUser as any, selectedRegion, expiresAt, reason, currentUser);
+      await grantTemporaryAccess(
+        targetUser as any,
+        selectedRegion,
+        expiresAt,
+        reason,
+        currentUser
+      );
       showNotification(
-        'success',
-        'Access Granted',
+        "success",
+        "Access Granted",
         `Temporary access to ${selectedRegion} granted to ${targetUser.name}.`
       );
 
       // Reset form
-      setSelectedUserId('');
-      setSelectedRegion('');
-      setExpirationDate('');
-      setReason('');
+      setSelectedUserId("");
+      setSelectedRegion("");
+      setExpirationDate("");
+      setReason("");
 
       // Reload data
       await loadData();
     } catch (error) {
-      showNotification('error', 'Error', 'Failed to grant temporary access.');
+      showNotification("error", "Error", "Failed to grant temporary access.");
     } finally {
       setLoading(false);
     }
@@ -269,18 +312,26 @@ const TemporaryAccessManagement: React.FC = () => {
 
   const handleExtend = async () => {
     if (!selectedGrant || !newExpirationDate) {
-      showNotification('error', 'Validation Error', 'Please select a new expiration date.');
+      showNotification(
+        "error",
+        "Validation Error",
+        "Please select a new expiration date."
+      );
       return;
     }
 
     if (!currentUser) {
-      showNotification('error', 'Error', 'User not authenticated.');
+      showNotification("error", "Error", "User not authenticated.");
       return;
     }
 
     const newExpiration = new Date(newExpirationDate);
     if (newExpiration <= new Date()) {
-      showNotification('error', 'Validation Error', 'New expiration date must be in the future.');
+      showNotification(
+        "error",
+        "Validation Error",
+        "New expiration date must be in the future."
+      );
       return;
     }
 
@@ -288,18 +339,18 @@ const TemporaryAccessManagement: React.FC = () => {
     try {
       await extendTemporaryAccess(selectedGrant.id, newExpiration, currentUser);
       showNotification(
-        'success',
-        'Access Extended',
+        "success",
+        "Access Extended",
         `Temporary access extended to ${newExpiration.toLocaleDateString()}.`
       );
 
       // Close modal and reload
       setExtendModalOpen(false);
       setSelectedGrant(null);
-      setNewExpirationDate('');
+      setNewExpirationDate("");
       await loadData();
     } catch (error) {
-      showNotification('error', 'Error', 'Failed to extend temporary access.');
+      showNotification("error", "Error", "Failed to extend temporary access.");
     } finally {
       setLoading(false);
     }
@@ -309,26 +360,30 @@ const TemporaryAccessManagement: React.FC = () => {
     if (!selectedGrant) return;
 
     if (!currentUser) {
-      showNotification('error', 'Error', 'User not authenticated.');
+      showNotification("error", "Error", "User not authenticated.");
       return;
     }
 
     setLoading(true);
     try {
-      await revokeTemporaryAccess(selectedGrant.id, currentUser, revokeReason || undefined);
+      await revokeTemporaryAccess(
+        selectedGrant.id,
+        currentUser,
+        revokeReason || undefined
+      );
       showNotification(
-        'success',
-        'Access Revoked',
+        "success",
+        "Access Revoked",
         `Temporary access to ${selectedGrant.region} revoked for ${selectedGrant.userName}.`
       );
 
       // Close modal and reload
       setRevokeModalOpen(false);
       setSelectedGrant(null);
-      setRevokeReason('');
+      setRevokeReason("");
       await loadData();
     } catch (error) {
-      showNotification('error', 'Error', 'Failed to revoke temporary access.');
+      showNotification("error", "Error", "Failed to revoke temporary access.");
     } finally {
       setLoading(false);
     }
@@ -343,29 +398,34 @@ const TemporaryAccessManagement: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (!deleteDialog.grant || !currentUser) {
-      showNotification('error', 'Error', 'User not authenticated.');
+      showNotification("error", "Error", "User not authenticated.");
       return;
     }
 
     setIsDeleting(true);
     try {
       await deleteTemporaryGrant(deleteDialog.grant.id, currentUser);
-      showNotification('success', 'Grant Deleted', 'Temporary access grant deleted successfully from database.');
+      showNotification(
+        "success",
+        "Grant Deleted",
+        "Temporary access grant deleted successfully from database."
+      );
       setDeleteDialog({ isOpen: false, grant: null });
       // Reload data to update table in real-time
       await loadData();
-      console.log('✅ Table refreshed after deletion');
+      console.log("✅ Table refreshed after deletion");
     } catch (error: any) {
-      const errorMessage = error.message || 'Failed to delete temporary access grant';
-      showNotification('error', 'Delete Failed', errorMessage);
-      console.error('❌ Delete failed:', error);
+      const errorMessage =
+        error.message || "Failed to delete temporary access grant";
+      showNotification("error", "Delete Failed", errorMessage);
+      console.error("❌ Delete failed:", error);
     } finally {
       setIsDeleting(false);
     }
   };
 
   const showNotification = (
-    type: 'success' | 'error' | 'warning' | 'info',
+    type: "success" | "error" | "warning" | "info",
     title: string,
     message: string
   ) => {
@@ -412,17 +472,19 @@ const TemporaryAccessManagement: React.FC = () => {
   const isExpiringSoon = (grant: TemporaryRegionAccess) => {
     if (grant.revokedAt || !grant.isActive) return false;
     const now = new Date();
-    const daysUntilExpiry = Math.floor((grant.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const daysUntilExpiry = Math.floor(
+      (grant.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
     return daysUntilExpiry <= 7 && daysUntilExpiry >= 0;
   };
 
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return new Date(date).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
     });
   };
 
@@ -456,7 +518,7 @@ const TemporaryAccessManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-br from-white to-amber-50 dark:from-gray-800 dark:to-amber-900/20 rounded-xl shadow-xl border-2 border-amber-100 dark:border-amber-900/30 p-6">
         <div className="flex items-center space-x-4">
@@ -479,8 +541,12 @@ const TemporaryAccessManagement: React.FC = () => {
         <div className="bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-indigo-900/20 rounded-xl shadow-lg border-2 border-indigo-100 dark:border-indigo-900/30 p-5 hover:shadow-xl transition-all duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 mb-1">Total Grants</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
+              <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 mb-1">
+                Total Grants
+              </p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                {stats.total}
+              </p>
             </div>
             <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md">
               <UserGroupIcon className="h-7 w-7 text-white" />
@@ -491,8 +557,12 @@ const TemporaryAccessManagement: React.FC = () => {
         <div className="bg-gradient-to-br from-white to-emerald-50 dark:from-gray-800 dark:to-emerald-900/20 rounded-xl shadow-lg border-2 border-emerald-100 dark:border-emerald-900/30 p-5 hover:shadow-xl transition-all duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Active</p>
-              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.active}</p>
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
+                Active
+              </p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+                {stats.active}
+              </p>
             </div>
             <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-md">
               <CheckCircleIcon className="h-7 w-7 text-white" />
@@ -503,20 +573,28 @@ const TemporaryAccessManagement: React.FC = () => {
         <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border-2 border-gray-100 dark:border-gray-900/30 p-5 hover:shadow-xl transition-all duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Expired</p>
-              <p className="text-3xl font-bold text-gray-600 dark:text-gray-400">{stats.expired}</p>
+              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                Expired
+              </p>
+              <p className="text-3xl font-bold text-gray-600 dark:text-gray-400">
+                {stats.expired}
+              </p>
             </div>
             <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center shadow-md">
               <ClockIcon className="h-7 w-7 text-white" />
+            </div>
           </div>
-        </div>
         </div>
 
         <div className="bg-gradient-to-br from-white to-rose-50 dark:from-gray-800 dark:to-rose-900/20 rounded-xl shadow-lg border-2 border-rose-100 dark:border-rose-900/30 p-5 hover:shadow-xl transition-all duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-1">Revoked</p>
-              <p className="text-3xl font-bold text-rose-600 dark:text-rose-400">{stats.revoked}</p>
+              <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-1">
+                Revoked
+              </p>
+              <p className="text-3xl font-bold text-rose-600 dark:text-rose-400">
+                {stats.revoked}
+              </p>
             </div>
             <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center shadow-md">
               <XCircleIcon className="h-7 w-7 text-white" />
@@ -535,7 +613,8 @@ const TemporaryAccessManagement: React.FC = () => {
                 Expiring Soon
               </h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                {expiringGrants.length} grant{expiringGrants.length !== 1 ? 's' : ''} expiring within 7 days
+                {expiringGrants.length} grant
+                {expiringGrants.length !== 1 ? "s" : ""} expiring within 7 days
               </p>
             </div>
           </div>
@@ -559,7 +638,7 @@ const TemporaryAccessManagement: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">-- Select User --</option>
-              {users.map(user => (
+              {users.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.name} ({user.email})
                 </option>
@@ -577,7 +656,7 @@ const TemporaryAccessManagement: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">-- Select Region --</option>
-              {INDIAN_STATES.map(state => (
+              {INDIAN_STATES.map((state) => (
                 <option key={state} value={state}>
                   {state}
                 </option>
@@ -617,7 +696,7 @@ const TemporaryAccessManagement: React.FC = () => {
             disabled={loading}
             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Granting...' : 'Grant Access'}
+            {loading ? "Granting..." : "Grant Access"}
           </button>
         </div>
       </div>
@@ -639,7 +718,7 @@ const TemporaryAccessManagement: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Users</option>
-              {users.map(user => (
+              {users.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.name}
                 </option>
@@ -657,7 +736,7 @@ const TemporaryAccessManagement: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Regions</option>
-              {INDIAN_STATES.map(state => (
+              {INDIAN_STATES.map((state) => (
                 <option key={state} value={state}>
                   {state}
                 </option>
@@ -718,13 +797,19 @@ const TemporaryAccessManagement: React.FC = () => {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {grants.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td
+                    colSpan={6}
+                    className="px-6 py-8 text-center text-gray-500 dark:text-gray-400"
+                  >
                     No temporary access grants found
                   </td>
                 </tr>
               ) : (
-                grants.map(grant => (
-                  <tr key={grant.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                grants.map((grant) => (
+                  <tr
+                    key={grant.id}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {grant.userName}
@@ -753,13 +838,15 @@ const TemporaryAccessManagement: React.FC = () => {
                       </div>
                       {grant.timeRemaining && !grant.timeRemaining.expired ? (
                         <div className="mt-1">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            grant.timeRemaining.days <= 1
-                              ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                              : grant.timeRemaining.days <= 7
-                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                          }`}>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              grant.timeRemaining.days <= 1
+                                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                                : grant.timeRemaining.days <= 7
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+                                : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                            }`}
+                          >
                             <ClockIcon className="h-3 w-3 mr-1" />
                             {grant.timeRemaining.display} remaining
                           </span>
@@ -774,32 +861,34 @@ const TemporaryAccessManagement: React.FC = () => {
                       {getStatusBadge(grant)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      {grant.isActive && !grant.revokedAt && grant.expiresAt > new Date() && (
-                        <>
-                          <button
-                            onClick={() => {
-                              setSelectedGrant(grant);
-                              setNewExpirationDate('');
-                              setExtendModalOpen(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="Extend"
-                          >
-                            <ArrowPathIcon className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedGrant(grant);
-                              setRevokeReason('');
-                              setRevokeModalOpen(true);
-                            }}
-                            className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
-                            title="Revoke"
-                          >
-                            <XCircleIcon className="h-5 w-5" />
-                          </button>
-                        </>
-                      )}
+                      {grant.isActive &&
+                        !grant.revokedAt &&
+                        grant.expiresAt > new Date() && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedGrant(grant);
+                                setNewExpirationDate("");
+                                setExtendModalOpen(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                              title="Extend"
+                            >
+                              <ArrowPathIcon className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedGrant(grant);
+                                setRevokeReason("");
+                                setRevokeModalOpen(true);
+                              }}
+                              className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
+                              title="Revoke"
+                            >
+                              <XCircleIcon className="h-5 w-5" />
+                            </button>
+                          </>
+                        )}
                       <button
                         onClick={() => handleDeleteClick(grant)}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
@@ -824,7 +913,8 @@ const TemporaryAccessManagement: React.FC = () => {
               Extend Temporary Access
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Extending access for <span className="font-semibold">{selectedGrant.userName}</span> to{' '}
+              Extending access for{" "}
+              <span className="font-semibold">{selectedGrant.userName}</span> to{" "}
               <span className="font-semibold">{selectedGrant.region}</span>
             </p>
             <div className="mb-4">
@@ -846,7 +936,7 @@ const TemporaryAccessManagement: React.FC = () => {
                 onClick={() => {
                   setExtendModalOpen(false);
                   setSelectedGrant(null);
-                  setNewExpirationDate('');
+                  setNewExpirationDate("");
                 }}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
               >
@@ -857,7 +947,7 @@ const TemporaryAccessManagement: React.FC = () => {
                 disabled={loading || !newExpirationDate}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Extending...' : 'Extend'}
+                {loading ? "Extending..." : "Extend"}
               </button>
             </div>
           </div>
@@ -872,7 +962,8 @@ const TemporaryAccessManagement: React.FC = () => {
               Revoke Temporary Access
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Revoking access for <span className="font-semibold">{selectedGrant.userName}</span> to{' '}
+              Revoking access for{" "}
+              <span className="font-semibold">{selectedGrant.userName}</span> to{" "}
               <span className="font-semibold">{selectedGrant.region}</span>
             </p>
             <div className="mb-4">
@@ -892,7 +983,7 @@ const TemporaryAccessManagement: React.FC = () => {
                 onClick={() => {
                   setRevokeModalOpen(false);
                   setSelectedGrant(null);
-                  setRevokeReason('');
+                  setRevokeReason("");
                 }}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
               >
@@ -903,7 +994,7 @@ const TemporaryAccessManagement: React.FC = () => {
                 disabled={loading}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Revoking...' : 'Revoke'}
+                {loading ? "Revoking..." : "Revoke"}
               </button>
             </div>
           </div>
@@ -917,7 +1008,11 @@ const TemporaryAccessManagement: React.FC = () => {
         onConfirm={handleConfirmDelete}
         title="Delete Temporary Access Grant"
         message="Are you sure you want to delete this temporary access grant? This action cannot be undone."
-        itemName={deleteDialog.grant ? `${deleteDialog.grant.userName} - ${deleteDialog.grant.region}` : ''}
+        itemName={
+          deleteDialog.grant
+            ? `${deleteDialog.grant.userName} - ${deleteDialog.grant.region}`
+            : ""
+        }
         isLoading={isDeleting}
         type="danger"
       />

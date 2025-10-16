@@ -8,6 +8,7 @@ require("dotenv").config();
 const { testConnection } = require("./src/config/database");
 const { errorHandler, notFound } = require("./src/middleware/errorHandler");
 const { startCleanupScheduler } = require("./src/utils/temporaryAccessCleanup");
+const { ensureTables } = require("./src/config/initTables");
 
 // Initialize Express app
 const app = express();
@@ -196,6 +197,9 @@ const startServer = async () => {
       );
       process.exit(1);
     }
+
+    // Ensure all database tables exist
+    await ensureTables();
 
     // Start temporary access cleanup scheduler
     startCleanupScheduler();

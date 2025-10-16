@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../store';
 import UserFilterControl from '../components/common/UserFilterControl';
 import { gisToolsService } from '../services/gisToolsService';
+import { apiService } from '../services/apiService';
+import { getUserAssignedRegionsSync, detectStateFromCoordinates } from '../utils/regionMapping';
 import type {
   DistanceMeasurement,
   PolygonDrawing,
@@ -20,7 +22,8 @@ const GISDataHub: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedUserId, setSelectedUserId] = useState<number | 'all' | 'me'>('me');
-  const [activeTab, setActiveTab] = useState<'all' | 'distance' | 'polygon' | 'circle' | 'sector' | 'elevation'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'distance' | 'polygon' | 'circle' | 'sector' | 'elevation' | 'infrastructure'>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Data states
   const [distanceMeasurements, setDistanceMeasurements] = useState<DistanceMeasurement[]>([]);
@@ -28,6 +31,7 @@ const GISDataHub: React.FC = () => {
   const [circleDrawings, setCircleDrawings] = useState<CircleDrawing[]>([]);
   const [sectorRF, setSectorRF] = useState<SectorRF[]>([]);
   const [elevationProfiles, setElevationProfiles] = useState<ElevationProfile[]>([]);
+  const [infrastructureItems, setInfrastructureItems] = useState<any[]>([]);
 
   // Modal states
   const [viewDetailsModal, setViewDetailsModal] = useState<{ isOpen: boolean; data: any; type: string }>({
@@ -61,7 +65,8 @@ const GISDataHub: React.FC = () => {
     polygonDrawings: 0,
     circleDrawings: 0,
     sectorRF: 0,
-    elevationProfiles: 0
+    elevationProfiles: 0,
+    infrastructureItems: 0
   });
 
   // Load data when user filter changes
@@ -93,13 +98,70 @@ const GISDataHub: React.FC = () => {
       setSectorRF(data.sectorRF);
       setElevationProfiles(data.elevationProfiles);
 
+      // Load infrastructure data separately
+      // NOTE: Infrastructure API doesn't support user filtering at backend level
+      // We fetch all data and apply client-side region filtering below
+      let infrastructureData: any[] = [];
+      try {
+        console.log('🏗️ Infrastructure: Fetching all infrastructure data (will apply region filtering)');
+        const rawInfraData = await apiService.getAllInfrastructure();
+        console.log('🏗️ Loaded infrastructure items:', rawInfraData.length);
+
+        // ✅ REGION FILTERING FIX: Filter by user's assigned regions
+        const assignedRegions = getUserAssignedRegionsSync(user);
+
+        if (user?.role === 'Admin' || assignedRegions.length === 0) {
+          // Admin sees all infrastructure
+          console.log('👑 GISDataHub: Admin user - showing all infrastructure');
+          infrastructureData = rawInfraData;
+        } else {
+          // Filter by user's assigned regions
+          console.log(`🔍 GISDataHub: Filtering infrastructure by assigned regions: ${assignedRegions.join(', ')}`);
+
+          infrastructureData = rawInfraData.filter((infra: any) => {
+            // Detect which region this infrastructure belongs to
+            const infraRegion = detectStateFromCoordinates(
+              parseFloat(infra.latitude),
+              parseFloat(infra.longitude)
+            );
+
+            if (!infraRegion) {
+              console.warn(`⚠️ Could not detect region for infrastructure: ${infra.item_name} at (${infra.latitude}, ${infra.longitude})`);
+              return false; // Exclude if region cannot be determined
+            }
+
+            // Check if infrastructure's region matches any assigned region
+            const normalizeRegion = (r: string) => r.trim().toLowerCase();
+            const isInAssignedRegion = assignedRegions.some(
+              (assignedRegion) => {
+                const normalizedAssigned = normalizeRegion(assignedRegion);
+                const normalizedInfra = normalizeRegion(infraRegion);
+                return (
+                  normalizedAssigned === normalizedInfra ||
+                  normalizedAssigned.includes(normalizedInfra) ||
+                  normalizedInfra.includes(normalizedAssigned)
+                );
+              }
+            );
+
+            return isInAssignedRegion;
+          });
+
+          console.log(`✅ GISDataHub: Filtered to ${infrastructureData.length} infrastructure items (from ${rawInfraData.length} total)`);
+        }
+      } catch (infraError) {
+        console.warn('Failed to load infrastructure data:', infraError);
+      }
+      setInfrastructureItems(infrastructureData);
+
       setStats({
-        total: data.total,
+        total: data.total + infrastructureData.length,
         distanceMeasurements: data.distanceMeasurements.length,
         polygonDrawings: data.polygonDrawings.length,
         circleDrawings: data.circleDrawings.length,
         sectorRF: data.sectorRF.length,
-        elevationProfiles: data.elevationProfiles.length
+        elevationProfiles: data.elevationProfiles.length,
+        infrastructureItems: infrastructureData.length
       });
     } catch (error) {
       console.error('Error loading GIS data:', error);
@@ -208,6 +270,10 @@ const GISDataHub: React.FC = () => {
         case 'elevation':
           success = await gisToolsService.elevationProfiles.delete(id);
           break;
+        case 'infrastructure':
+          await apiService.deleteInfrastructure(id);
+          success = true;
+          break;
       }
 
       if (success) {
@@ -265,6 +331,29 @@ const GISDataHub: React.FC = () => {
     );
   };
 
+  // Filter items based on search term
+  const filterItems = <T extends Record<string, any>>(items: T[], nameField: string): T[] => {
+    if (!searchTerm.trim()) return items;
+
+    const searchLower = searchTerm.toLowerCase().trim();
+    return items.filter((item) => {
+      const name = (item[nameField] || '').toString().toLowerCase();
+      const notes = (item.notes || '').toString().toLowerCase();
+      const username = (item.username || '').toString().toLowerCase();
+
+      // Search in name, notes, and username
+      return name.includes(searchLower) || notes.includes(searchLower) || username.includes(searchLower);
+    });
+  };
+
+  // Apply filtering to all data types
+  const filteredDistanceMeasurements = filterItems(distanceMeasurements, 'measurement_name');
+  const filteredPolygonDrawings = filterItems(polygonDrawings, 'polygon_name');
+  const filteredCircleDrawings = filterItems(circleDrawings, 'circle_name');
+  const filteredSectorRF = filterItems(sectorRF, 'sector_name');
+  const filteredElevationProfiles = filterItems(elevationProfiles, 'profile_name');
+  const filteredInfrastructureItems = filterItems(infrastructureItems, 'item_name');
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -305,6 +394,46 @@ const GISDataHub: React.FC = () => {
                 defaultValue="me"
                 showLabel={true}
               />
+
+              {/* Search Input */}
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                  Search
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search by name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  />
+                  <svg
+                    className="absolute left-3 top-2.5 w-4 h-4 text-gray-400 dark:text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2 top-2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      title="Clear search"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
 
               {/* Statistics */}
               <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -348,6 +477,12 @@ const GISDataHub: React.FC = () => {
                       {stats.elevationProfiles}
                     </span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Infrastructure:</span>
+                    <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                      {stats.infrastructureItems}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -365,7 +500,8 @@ const GISDataHub: React.FC = () => {
                     { id: 'polygon', label: 'Polygons', count: stats.polygonDrawings },
                     { id: 'circle', label: 'Circles', count: stats.circleDrawings },
                     { id: 'sector', label: 'RF Sectors', count: stats.sectorRF },
-                    { id: 'elevation', label: 'Elevation', count: stats.elevationProfiles }
+                    { id: 'elevation', label: 'Elevation', count: stats.elevationProfiles },
+                    { id: 'infrastructure', label: 'Infrastructure', count: stats.infrastructureItems }
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -400,15 +536,15 @@ const GISDataHub: React.FC = () => {
                 <>
                   {/* Distance Measurements */}
                   {(activeTab === 'all' || activeTab === 'distance') &&
-                    distanceMeasurements.length > 0 && (
+                    filteredDistanceMeasurements.length > 0 && (
                       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            📏 Distance Measurements ({distanceMeasurements.length})
+                            📏 Distance Measurements ({filteredDistanceMeasurements.length})
                           </h3>
                         </div>
                         <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {distanceMeasurements.map((item) => (
+                          {filteredDistanceMeasurements.map((item) => (
                             <div key={item.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700">
                               <div className="flex items-center justify-between">
                                 <div className="flex-1">
@@ -473,15 +609,15 @@ const GISDataHub: React.FC = () => {
 
                   {/* Polygon Drawings */}
                   {(activeTab === 'all' || activeTab === 'polygon') &&
-                    polygonDrawings.length > 0 && (
+                    filteredPolygonDrawings.length > 0 && (
                       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            ▭ Polygon Drawings ({polygonDrawings.length})
+                            ▭ Polygon Drawings ({filteredPolygonDrawings.length})
                           </h3>
                         </div>
                         <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {polygonDrawings.map((item) => (
+                          {filteredPolygonDrawings.map((item) => (
                             <div key={item.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700">
                               <div className="flex items-center justify-between">
                                 <div className="flex-1">
@@ -540,15 +676,15 @@ const GISDataHub: React.FC = () => {
 
                   {/* Circle Drawings */}
                   {(activeTab === 'all' || activeTab === 'circle') &&
-                    circleDrawings.length > 0 && (
+                    filteredCircleDrawings.length > 0 && (
                       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            ⭕ Circle Drawings ({circleDrawings.length})
+                            ⭕ Circle Drawings ({filteredCircleDrawings.length})
                           </h3>
                         </div>
                         <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {circleDrawings.map((item) => (
+                          {filteredCircleDrawings.map((item) => (
                             <div key={item.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700">
                               <div className="flex items-center justify-between">
                                 <div className="flex-1">
@@ -605,15 +741,15 @@ const GISDataHub: React.FC = () => {
                     )}
 
                   {/* RF Sectors */}
-                  {(activeTab === 'all' || activeTab === 'sector') && sectorRF.length > 0 && (
+                  {(activeTab === 'all' || activeTab === 'sector') && filteredSectorRF.length > 0 && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          📡 RF Sectors ({sectorRF.length})
+                          📡 RF Sectors ({filteredSectorRF.length})
                         </h3>
                       </div>
                       <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {sectorRF.map((item) => (
+                        {filteredSectorRF.map((item) => (
                           <div key={item.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700">
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
@@ -670,15 +806,15 @@ const GISDataHub: React.FC = () => {
 
                   {/* Elevation Profiles */}
                   {(activeTab === 'all' || activeTab === 'elevation') &&
-                    elevationProfiles.length > 0 && (
+                    filteredElevationProfiles.length > 0 && (
                       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            ⛰️ Elevation Profiles ({elevationProfiles.length})
+                            ⛰️ Elevation Profiles ({filteredElevationProfiles.length})
                           </h3>
                         </div>
                         <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {elevationProfiles.map((item) => (
+                          {filteredElevationProfiles.map((item) => (
                             <div key={item.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700">
                               <div className="flex items-center justify-between">
                                 <div className="flex-1">
@@ -722,6 +858,86 @@ const GISDataHub: React.FC = () => {
                                         🗑️ Delete
                                       </button>
                                     </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Infrastructure Items */}
+                  {(activeTab === 'all' || activeTab === 'infrastructure') &&
+                    filteredInfrastructureItems.length > 0 && (
+                      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            🏗️ Infrastructure Items ({filteredInfrastructureItems.length})
+                          </h3>
+                        </div>
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {filteredInfrastructureItems.map((item) => (
+                            <div key={item.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-medium text-gray-900 dark:text-white flex items-center space-x-2">
+                                    <span>{item.item_name}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      item.item_type === 'POP' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-100' :
+                                      item.item_type === 'SubPOP' ? 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100' :
+                                      item.item_type === 'Tower' ? 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100' :
+                                      'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                                    }`}>
+                                      {item.item_type}
+                                    </span>
+                                    {renderUserBadge(item.username)}
+                                  </h4>
+                                  <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                                    <span>📍 ({Number(item.latitude).toFixed(4)}, {Number(item.longitude).toFixed(4)})</span>
+                                    <span>🔖 {item.unique_id}</span>
+                                    {item.status && (
+                                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                        item.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' :
+                                        item.status === 'Inactive' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100' :
+                                        item.status === 'Maintenance' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100' :
+                                        'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100'
+                                      }`}>
+                                        {item.status}
+                                      </span>
+                                    )}
+                                    {item.source && (
+                                      <span className="text-xs">📥 {item.source}</span>
+                                    )}
+                                    <span>🕐 {formatDate(item.created_at)}</span>
+                                  </div>
+                                  {item.address_city && (
+                                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                      📍 {item.address_city}{item.address_state ? `, ${item.address_state}` : ''}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="ml-4 flex items-center space-x-2">
+                                  <button
+                                    onClick={() => handleViewDetails(item, 'infrastructure')}
+                                    className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded border border-blue-300 dark:border-blue-700"
+                                  >
+                                    📋 Details
+                                  </button>
+                                  <button
+                                    onClick={() => handleViewOnMap(item, 'infrastructure')}
+                                    className="px-3 py-1.5 text-xs font-medium text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20 rounded border border-green-300 dark:border-green-700"
+                                  >
+                                    🗺️ Map
+                                  </button>
+                                  {(user?.role === 'Admin' || user?.role === 'Manager' || canEditDelete(item.user_id)) && (
+                                    <button
+                                      onClick={() => handleDeleteClick('infrastructure', item.id!, item.item_name, item.user_id)}
+                                      className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded border border-red-300 dark:border-red-700"
+                                      title="Delete"
+                                    >
+                                      🗑️ Delete
+                                    </button>
                                   )}
                                 </div>
                               </div>
@@ -1252,6 +1468,186 @@ const GISDataHub: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
+                );
+              })()}
+
+              {/* Infrastructure Details */}
+              {viewDetailsModal.type === 'infrastructure' && (() => {
+                const data = viewDetailsModal.data;
+                return (
+                  <div className="space-y-6">
+                    {/* Basic Information */}
+                    <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 border border-indigo-200 dark:border-indigo-800">
+                      <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100 mb-3">🏗️ Basic Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Item Name</p>
+                          <p className="text-base font-semibold text-gray-900 dark:text-white">{data.item_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Type</p>
+                          <p className="text-base font-semibold text-gray-900 dark:text-white">{data.item_type}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Unique ID</p>
+                          <p className="text-base font-semibold text-gray-900 dark:text-white">{data.unique_id}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Status</p>
+                          <p className="text-base font-semibold text-gray-900 dark:text-white">{data.status || 'N/A'}</p>
+                        </div>
+                        {data.network_id && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Network ID</p>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">{data.network_id}</p>
+                          </div>
+                        )}
+                        {data.ref_code && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Reference Code</p>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">{data.ref_code}</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Source</p>
+                          <p className="text-base font-semibold text-gray-900 dark:text-white">{data.source || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Created</p>
+                          <p className="text-base font-semibold text-gray-900 dark:text-white">{formatDate(data.created_at)}</p>
+                        </div>
+                        {data.username && (
+                          <div className="col-span-2">
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Created By</p>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">👤 {data.username}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Location */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">📍 Location</h3>
+                      <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Latitude</p>
+                            <p className="text-base font-mono font-semibold text-gray-900 dark:text-white">{Number(data.latitude).toFixed(6)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Longitude</p>
+                            <p className="text-base font-mono font-semibold text-gray-900 dark:text-white">{Number(data.longitude).toFixed(6)}</p>
+                          </div>
+                          {data.height && (
+                            <div className="col-span-2">
+                              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Height</p>
+                              <p className="text-base font-semibold text-gray-900 dark:text-white">{data.height}m</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    {(data.address_street || data.address_city || data.address_state || data.address_pincode) && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">🏠 Address</h3>
+                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <p className="text-sm text-gray-700 dark:text-gray-300">
+                            {[data.address_street, data.address_city, data.address_state, data.address_pincode]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Contact Information */}
+                    {(data.contact_name || data.contact_phone || data.contact_email) && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">📞 Contact</h3>
+                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            {data.contact_name && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Name:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.contact_name}</span>
+                              </div>
+                            )}
+                            {data.contact_phone && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Phone:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.contact_phone}</span>
+                              </div>
+                            )}
+                            {data.contact_email && (
+                              <div className="col-span-2">
+                                <span className="text-gray-600 dark:text-gray-400">Email:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.contact_email}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Technical Details */}
+                    {(data.structure_type || data.power_source || data.ups_availability || data.bandwidth) && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">⚙️ Technical Details</h3>
+                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            {data.structure_type && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Structure:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.structure_type}</span>
+                              </div>
+                            )}
+                            {data.power_source && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Power:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.power_source}</span>
+                              </div>
+                            )}
+                            {data.ups_availability !== undefined && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">UPS:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.ups_availability ? 'Available' : 'Not Available'}</span>
+                              </div>
+                            )}
+                            {data.ups_capacity && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">UPS Capacity:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.ups_capacity}</span>
+                              </div>
+                            )}
+                            {data.backup_capacity && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Backup:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.backup_capacity}</span>
+                              </div>
+                            )}
+                            {data.bandwidth && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Bandwidth:</span>
+                                <span className="ml-2 text-gray-900 dark:text-white">{data.bandwidth}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {data.notes && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">📝 Notes</h3>
+                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{data.notes}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}

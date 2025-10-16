@@ -9,10 +9,11 @@ import {
   isPointInsideIndia,
   showOutsideIndiaWarning
 } from "../../utils/indiaBoundaryCheck";
-import { isPointInAssignedRegion } from "../../utils/regionMapping";
+import { isPointInAssignedRegion, getUserAssignedRegionsSync, detectStateFromCoordinates } from "../../utils/regionMapping";
 import NotificationDialog from "../common/NotificationDialog";
 import { trackToolUsage } from "../../services/analyticsService";
 import { useAppSelector } from "../../store";
+import { apiService } from "../../services/apiService";
 
 interface InfrastructureManagementToolProps {
   map: google.maps.Map | null;
@@ -21,8 +22,8 @@ interface InfrastructureManagementToolProps {
 }
 
 /**
- * Infrastructure Management Tool - Phase 4.5
- * KML import and manual POP/SubPOP management
+ * Infrastructure Management Tool - Backend Integrated
+ * KML import and manual POP/SubPOP management with API
  */
 const InfrastructureManagementTool: React.FC<
   InfrastructureManagementToolProps
@@ -30,6 +31,7 @@ const InfrastructureManagementTool: React.FC<
   const { user } = useAppSelector((state) => state.auth);
   const [startTime] = useState<number>(Date.now());
   const [infrastructures, setInfrastructures] = useState<Infrastructure[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [markers, setMarkers] = useState<Map<string, google.maps.Marker>>(
     new Map()
   );
@@ -50,6 +52,29 @@ const InfrastructureManagementTool: React.FC<
   const [viewingInfra, setViewingInfra] = useState<Infrastructure | null>(null);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // KML Import states
+  const [showImportPreview, setShowImportPreview] = useState<boolean>(false);
+  const [importSession, setImportSession] = useState<{
+    sessionId: string;
+    items: any[];
+  } | null>(null);
+  const [selectedImportIds, setSelectedImportIds] = useState<Set<number>>(
+    new Set()
+  );
+  // Icon/type selection for imported items (NEW FEATURE)
+  const [importItemTypes, setImportItemTypes] = useState<Map<number, InfrastructureType>>(
+    new Map()
+  );
+
+  // Stats
+  const [stats, setStats] = useState({
+    total: 0,
+    pop_count: 0,
+    subpop_count: 0,
+    kml_count: 0,
+    manual_count: 0
+  });
 
   // Form state for adding/editing
   const [formData, setFormData] = useState<Partial<Infrastructure>>({
@@ -77,9 +102,10 @@ const InfrastructureManagementTool: React.FC<
     message: ""
   });
 
-  // Load infrastructures from localStorage on mount
+  // Load infrastructures from backend on mount
   useEffect(() => {
     loadInfrastructures();
+    loadStats();
   }, []);
 
   // Click listener for placing markers
@@ -117,38 +143,200 @@ const InfrastructureManagementTool: React.FC<
   }, [infrastructures, map]);
 
   /**
-   * Load infrastructures from localStorage
+   * Transform backend data to frontend format
    */
-  const loadInfrastructures = () => {
-    const saved = localStorage.getItem("gis_infrastructures");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Convert date strings back to Date objects
-      const infrastructuresWithDates = parsed.map((infra: any) => ({
-        ...infra,
-        createdOn: new Date(infra.createdOn),
-        updatedOn: new Date(infra.updatedOn),
-        agreementDates: infra.agreementDates
-          ? {
-              start: new Date(infra.agreementDates.start),
-              end: new Date(infra.agreementDates.end)
+  const transformBackendToFrontend = (backendData: any): Infrastructure => {
+    return {
+      id: backendData.id.toString(),
+      type: backendData.item_type as InfrastructureType,
+      name: backendData.item_name,
+      uniqueId: backendData.unique_id,
+      networkId: backendData.network_id || "",
+      refCode: backendData.ref_code,
+      coordinates: {
+        lat: parseFloat(backendData.latitude),
+        lng: parseFloat(backendData.longitude)
+      },
+      address: {
+        street: backendData.address_street || "",
+        city: backendData.address_city || "",
+        state: backendData.address_state || "",
+        pincode: backendData.address_pincode || ""
+      },
+      contactName: backendData.contact_name || "",
+      contactNo: backendData.contact_phone || "",
+      contactEmail: backendData.contact_email,
+      isRented: backendData.is_rented || false,
+      rentAmount: backendData.rent_amount,
+      agreementDates: backendData.agreement_start_date
+        ? {
+            start: new Date(backendData.agreement_start_date),
+            end: new Date(backendData.agreement_end_date)
+          }
+        : undefined,
+      landlordName: backendData.landlord_name,
+      landlordContact: backendData.landlord_contact,
+      natureOfBusiness: backendData.nature_of_business,
+      owner: backendData.owner,
+      structureType: backendData.structure_type || "Tower",
+      height: backendData.height,
+      upsAvailability: backendData.ups_availability || false,
+      upsCapacity: backendData.ups_capacity,
+      backupCapacity: backendData.backup_capacity || "",
+      powerSource: backendData.power_source || "Grid",
+      equipmentList: backendData.equipment_list
+        ? JSON.parse(backendData.equipment_list)
+        : undefined,
+      connectedTo: backendData.connected_to
+        ? JSON.parse(backendData.connected_to)
+        : undefined,
+      bandwidth: backendData.bandwidth,
+      source: backendData.source || "Manual",
+      kmlFileName: backendData.kml_filename,
+      createdOn: new Date(backendData.created_at),
+      updatedOn: new Date(backendData.updated_at || backendData.created_at),
+      status: backendData.status || "Active",
+      notes: backendData.notes
+    };
+  };
+
+  /**
+   * Transform frontend data to backend format
+   */
+  const transformFrontendToBackend = (
+    frontendData: Partial<Infrastructure>
+  ) => {
+    return {
+      item_type: frontendData.type,
+      item_name: frontendData.name,
+      unique_id: frontendData.uniqueId,
+      network_id: frontendData.networkId,
+      ref_code: frontendData.refCode,
+      latitude: frontendData.coordinates?.lat,
+      longitude: frontendData.coordinates?.lng,
+      height: frontendData.height,
+      address_street: frontendData.address?.street,
+      address_city: frontendData.address?.city,
+      address_state: frontendData.address?.state,
+      address_pincode: frontendData.address?.pincode,
+      contact_name: frontendData.contactName,
+      contact_phone: frontendData.contactNo,
+      contact_email: frontendData.contactEmail,
+      is_rented: frontendData.isRented,
+      rent_amount: frontendData.rentAmount,
+      agreement_start_date: frontendData.agreementDates?.start,
+      agreement_end_date: frontendData.agreementDates?.end,
+      landlord_name: frontendData.landlordName,
+      landlord_contact: frontendData.landlordContact,
+      nature_of_business: frontendData.natureOfBusiness,
+      owner: frontendData.owner,
+      structure_type: frontendData.structureType,
+      ups_availability: frontendData.upsAvailability,
+      ups_capacity: frontendData.upsCapacity,
+      backup_capacity: frontendData.backupCapacity,
+      power_source: frontendData.powerSource,
+      equipment_list: frontendData.equipmentList,
+      connected_to: frontendData.connectedTo,
+      bandwidth: frontendData.bandwidth,
+      status: frontendData.status,
+      source: frontendData.source,
+      notes: frontendData.notes
+    };
+  };
+
+  /**
+   * Load infrastructures from backend with region filtering
+   * Now properly filters by user's assigned regions (consistent with other GIS tools)
+   */
+  const loadInfrastructures = async () => {
+    try {
+      setIsLoading(true);
+
+      console.log("🏗️ Loading infrastructure data for user:", user?.name);
+      console.log("📍 User assigned regions:", user?.assignedRegions);
+
+      // Load all infrastructure from backend
+      const data = await apiService.getAllInfrastructure();
+      const transformed = data.map(transformBackendToFrontend);
+
+      console.log(`📦 Received ${transformed.length} infrastructure items from backend`);
+
+      // ✅ REGION FILTERING FIX:
+      // Apply client-side region filtering based on user's assigned regions
+      // This ensures users only see infrastructure in their assigned regions
+      const assignedRegions = getUserAssignedRegionsSync(user);
+
+      let filtered: Infrastructure[];
+
+      if (user?.role === 'Admin' || assignedRegions.length === 0) {
+        // Admin sees all infrastructure
+        console.log("👑 Admin user - showing all infrastructure");
+        filtered = transformed;
+      } else {
+        // Filter by user's assigned regions
+        console.log(`🔍 Filtering by assigned regions: ${assignedRegions.join(', ')}`);
+
+        filtered = transformed.filter((infra) => {
+          // Detect which region this infrastructure belongs to
+          const infraRegion = detectStateFromCoordinates(
+            infra.coordinates.lat,
+            infra.coordinates.lng
+          );
+
+          if (!infraRegion) {
+            console.warn(`⚠️ Could not detect region for infrastructure: ${infra.name} at (${infra.coordinates.lat}, ${infra.coordinates.lng})`);
+            return false; // Exclude if region cannot be determined
+          }
+
+          // Check if infrastructure's region matches any assigned region
+          const normalizeRegion = (r: string) => r.trim().toLowerCase();
+          const isInAssignedRegion = assignedRegions.some(
+            (assignedRegion) => {
+              const normalizedAssigned = normalizeRegion(assignedRegion);
+              const normalizedInfra = normalizeRegion(infraRegion);
+              return (
+                normalizedAssigned === normalizedInfra ||
+                normalizedAssigned.includes(normalizedInfra) ||
+                normalizedInfra.includes(normalizedAssigned)
+              );
             }
-          : undefined
-      }));
-      setInfrastructures(infrastructuresWithDates);
+          );
+
+          if (isInAssignedRegion) {
+            console.log(`✅ ${infra.name} in ${infraRegion} - INCLUDED`);
+          } else {
+            console.log(`❌ ${infra.name} in ${infraRegion} - EXCLUDED (not in assigned regions)`);
+          }
+
+          return isInAssignedRegion;
+        });
+
+        console.log(`✅ Filtered to ${filtered.length} infrastructure items (from ${transformed.length} total)`);
+      }
+
+      setInfrastructures(filtered);
+    } catch (error: any) {
+      console.error("Error loading infrastructures:", error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Load Failed",
+        message: error.message || "Failed to load infrastructure data"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   /**
-   * Save infrastructures to localStorage
+   * Load statistics
    */
-  const saveInfrastructures = (infras: Infrastructure[]) => {
-    localStorage.setItem("gis_infrastructures", JSON.stringify(infras));
-    setInfrastructures(infras);
-
-    // Notify parent component that data was saved
-    if (onSave) {
-      onSave();
+  const loadStats = async () => {
+    try {
+      const data = await apiService.getInfrastructureStats();
+      setStats(data);
+    } catch (error) {
+      console.error("Error loading stats:", error);
     }
   };
 
@@ -311,94 +499,122 @@ const InfrastructureManagementTool: React.FC<
     if (!file) return;
 
     try {
+      setIsLoading(true);
       const text = await file.text();
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(text, "text/xml");
 
-      const placemarks = xmlDoc.getElementsByTagName("Placemark");
-      const newInfras: Infrastructure[] = [];
+      console.log("📄 KML File Info:", {
+        name: file.name,
+        size: file.size,
+        textLength: text.length,
+        preview: text.substring(0, 200)
+      });
 
-      for (let i = 0; i < placemarks.length; i++) {
-        const placemark = placemarks[i];
-        const name =
-          placemark.getElementsByTagName("name")[0]?.textContent ||
-          `Import ${i + 1}`;
-        const description =
-          placemark.getElementsByTagName("description")[0]?.textContent || "";
-        const coordinates = placemark
-          .getElementsByTagName("coordinates")[0]
-          ?.textContent?.trim();
-
-        if (coordinates) {
-          const [lng, lat] = coordinates.split(",").map(parseFloat);
-
-          // Determine type from name or description
-          const type: InfrastructureType =
-            name.toLowerCase().includes("subpop") ||
-            description.toLowerCase().includes("subpop")
-              ? "SubPOP"
-              : "POP";
-
-          const infra: Infrastructure = {
-            id: `kml_${Date.now()}_${i}`,
-            type,
-            name,
-            uniqueId: `KML-${type}-${String(i + 1).padStart(3, "0")}`,
-            networkId: `NET-${Date.now()}-${i}`,
-            coordinates: { lat, lng },
-            address: {
-              street: "",
-              city: "",
-              state: "",
-              pincode: ""
-            },
-            contactName: "",
-            contactNo: "",
-            isRented: false,
-            structureType: "Tower",
-            upsAvailability: false,
-            backupCapacity: "",
-            powerSource: "Grid",
-            source: "KML",
-            kmlFileName: file.name,
-            createdOn: new Date(),
-            updatedOn: new Date(),
-            status: "Active",
-            notes: description
-          };
-
-          newInfras.push(infra);
-        }
+      // Validate KML content
+      if (!text || text.trim().length === 0) {
+        throw new Error("KML file is empty");
       }
 
-      if (newInfras.length > 0) {
-        saveInfrastructures([...infrastructures, ...newInfras]);
-        setNotification({
-          isOpen: true,
-          type: "success",
-          title: "Import Successful!",
-          message: `Successfully imported ${newInfras.length} infrastructure items from KML`
-        });
-      } else {
-        setNotification({
-          isOpen: true,
-          type: "warning",
-          title: "No Data Found",
-          message: "No valid placemarks found in KML file"
-        });
+      if (!text.includes("<kml") && !text.includes("<?xml")) {
+        throw new Error("Invalid KML file format");
       }
-    } catch (error) {
+
+      // Send to backend for parsing and staging
+      const result = await apiService.importKML(text, file.name);
+
+      setImportSession({
+        sessionId: result.importSessionId,
+        items: result.items
+      });
+
+      // Pre-select all items
+      const allIds = result.items.map((item: any) => item.id);
+      setSelectedImportIds(new Set(allIds));
+
+      setShowImportPreview(true);
+      setNotification({
+        isOpen: true,
+        type: "success",
+        title: "Import Ready",
+        message: `${result.itemCount} items ready for preview. Review and save.`
+      });
+    } catch (error: any) {
       console.error("Error importing KML:", error);
+
+      // Extract error message from backend response
+      let errorMessage = "Failed to import KML file";
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       setNotification({
         isOpen: true,
         type: "error",
         title: "Import Failed",
-        message: "Failed to import KML file. Please check the file format."
+        message: errorMessage
       });
+    } finally {
+      setIsLoading(false);
+      event.target.value = "";
     }
+  };
 
-    // Reset input
-    event.target.value = "";
+  /**
+   * Save selected imported items
+   */
+  const handleSaveImportedItems = async () => {
+    if (!importSession) return;
+
+    try {
+      setIsLoading(true);
+      const result = await apiService.saveImportedItems(
+        importSession.sessionId,
+        Array.from(selectedImportIds)
+      );
+
+      setNotification({
+        isOpen: true,
+        type: "success",
+        title: "Import Complete",
+        message: `Successfully saved ${result.count} items`
+      });
+
+      // Reload data
+      await loadInfrastructures();
+      await loadStats();
+
+      // Close preview
+      setShowImportPreview(false);
+      setImportSession(null);
+      setSelectedImportIds(new Set());
+    } catch (error: any) {
+      console.error("Error saving imported items:", error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Save Failed",
+        message: error.message || "Failed to save imported items"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Delete import session
+   */
+  const handleCancelImport = async () => {
+    if (!importSession) return;
+
+    try {
+      await apiService.deleteImportSession(importSession.sessionId);
+      setShowImportPreview(false);
+      setImportSession(null);
+      setSelectedImportIds(new Set());
+    } catch (error) {
+      console.error("Error canceling import:", error);
+    }
   };
 
   /**
@@ -428,13 +644,12 @@ const InfrastructureManagementTool: React.FC<
         isOpen: true,
         type: "warning",
         title: "Missing Information",
-        message:
-          "Please fill in all required fields (Name and Coordinates - either click on map OR enter manually)"
+        message: "Please fill in all required fields (Name and Coordinates)"
       });
       return;
     }
 
-    // Check if point is in assigned region (Region-based access control)
+    // Check if point is in assigned region
     const regionCheck = await isPointInAssignedRegion(
       coordinates.lat,
       coordinates.lng,
@@ -445,81 +660,68 @@ const InfrastructureManagementTool: React.FC<
         isOpen: true,
         type: "error",
         title: "Region Access Denied",
-        message:
-          regionCheck.message ||
-          "You don't have access to this region. Contact your administrator."
+        message: regionCheck.message || "You don't have access to this region."
       });
       return;
     }
 
-    // Generate unique IDs
-    const ids = generateUniqueId(formData.type as InfrastructureType);
+    try {
+      setIsLoading(true);
 
-    const newInfra: Infrastructure = {
-      id: `manual_${Date.now()}`,
-      type: formData.type as InfrastructureType,
-      name: formData.name,
-      uniqueId: ids.uniqueId,
-      networkId: ids.networkId,
-      coordinates: coordinates,
-      address: formData.address || {
-        street: "",
-        city: "",
-        state: "",
-        pincode: ""
-      },
-      contactName: formData.contactName || "",
-      contactNo: formData.contactNo || "",
-      contactEmail: formData.contactEmail,
-      isRented: formData.isRented || false,
-      rentAmount: formData.rentAmount,
-      agreementDates: formData.agreementDates,
-      landlordName: formData.landlordName,
-      landlordContact: formData.landlordContact,
-      structureType: formData.structureType || "Tower",
-      height: formData.height,
-      upsAvailability: formData.upsAvailability || false,
-      upsCapacity: formData.upsCapacity,
-      backupCapacity: formData.backupCapacity || "",
-      powerSource: formData.powerSource || "Grid",
-      equipmentList: formData.equipmentList,
-      connectedTo: formData.connectedTo,
-      bandwidth: formData.bandwidth,
-      source: "Manual",
-      createdOn: new Date(),
-      updatedOn: new Date(),
-      status: formData.status || "Active",
-      notes: formData.notes
-    };
+      // Generate unique IDs
+      const ids = generateUniqueId(formData.type as InfrastructureType);
 
-    saveInfrastructures([...infrastructures, newInfra]);
+      const dataToSend = transformFrontendToBackend({
+        ...formData,
+        uniqueId: ids.uniqueId,
+        networkId: ids.networkId,
+        coordinates: coordinates,
+        source: "Manual"
+      });
 
-    // Track tool usage for analytics
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    trackToolUsage({
-      toolName: "infrastructure-management",
-      userId: user?.id || "guest",
-      userName: user?.name || "Guest User",
-      duration
-    });
+      await apiService.createInfrastructure(dataToSend);
 
-    setNotification({
-      isOpen: true,
-      type: "success",
-      title: "Success!",
-      message: "Infrastructure added successfully!"
-    });
-    resetForm();
+      // Track tool usage
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      trackToolUsage({
+        toolName: "infrastructure-management",
+        userId: user?.id || "guest",
+        userName: user?.name || "Guest User",
+        duration
+      });
+
+      setNotification({
+        isOpen: true,
+        type: "success",
+        title: "Success!",
+        message: "Infrastructure added successfully!"
+      });
+
+      // Reload data
+      await loadInfrastructures();
+      await loadStats();
+      resetForm();
+
+      if (onSave) onSave();
+    } catch (error: any) {
+      console.error("Error creating infrastructure:", error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Creation Failed",
+        message: error.message || "Failed to create infrastructure"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /**
-   * Generate unique ID in format POP.xxxxxx or SUBPOP.xxxxxx
-   * Returns both uniqueId and networkId
+   * Generate unique ID
    */
   const generateUniqueId = (
     type: InfrastructureType
   ): { uniqueId: string; networkId: string } => {
-    // Generate random 6-character alphanumeric ID
     const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     if (type === "POP") {
@@ -552,7 +754,6 @@ const InfrastructureManagementTool: React.FC<
       return;
     }
 
-    // Check if coordinates are inside India
     if (!isPointInsideIndia(lat, lng)) {
       showOutsideIndiaWarning();
       return;
@@ -563,7 +764,7 @@ const InfrastructureManagementTool: React.FC<
   };
 
   /**
-   * Open View modal for infrastructure
+   * Open View modal
    */
   const handleViewInfra = (infra: Infrastructure) => {
     setViewingInfra(infra);
@@ -571,7 +772,7 @@ const InfrastructureManagementTool: React.FC<
   };
 
   /**
-   * Toggle selection of an infrastructure item
+   * Toggle selection
    */
   const toggleItemSelection = (id: string) => {
     const newSelection = new Set(selectedItems);
@@ -584,7 +785,7 @@ const InfrastructureManagementTool: React.FC<
   };
 
   /**
-   * Select/deselect all visible items
+   * Select/deselect all
    */
   const toggleSelectAll = () => {
     const visibleInfras = applyFilters(infrastructures);
@@ -596,9 +797,9 @@ const InfrastructureManagementTool: React.FC<
   };
 
   /**
-   * Bulk delete selected items
+   * Bulk delete
    */
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedItems.size === 0) {
       setNotification({
         isOpen: true,
@@ -609,15 +810,36 @@ const InfrastructureManagementTool: React.FC<
       return;
     }
 
-    const remaining = infrastructures.filter((i) => !selectedItems.has(i.id));
-    saveInfrastructures(remaining);
-    setSelectedItems(new Set());
-    setNotification({
-      isOpen: true,
-      type: "success",
-      title: "Deleted",
-      message: `${selectedItems.size} item(s) deleted successfully`
-    });
+    try {
+      setIsLoading(true);
+
+      // Delete each selected item
+      for (const id of Array.from(selectedItems)) {
+        await apiService.deleteInfrastructure(id);
+      }
+
+      setNotification({
+        isOpen: true,
+        type: "success",
+        title: "Deleted",
+        message: `${selectedItems.size} item(s) deleted successfully`
+      });
+
+      // Reload data
+      await loadInfrastructures();
+      await loadStats();
+      setSelectedItems(new Set());
+    } catch (error: any) {
+      console.error("Error deleting items:", error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Delete Failed",
+        message: error.message || "Failed to delete items"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /**
@@ -651,17 +873,34 @@ const InfrastructureManagementTool: React.FC<
     setDeleteConfirmId(id);
   };
 
-  const confirmDelete = () => {
-    if (deleteConfirmId) {
-      const updated = infrastructures.filter((i) => i.id !== deleteConfirmId);
-      saveInfrastructures(updated);
-      setDeleteConfirmId(null);
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
+
+    try {
+      setIsLoading(true);
+      await apiService.deleteInfrastructure(deleteConfirmId);
+
       setNotification({
         isOpen: true,
         type: "success",
         title: "Deleted",
         message: "Infrastructure deleted successfully"
       });
+
+      // Reload data
+      await loadInfrastructures();
+      await loadStats();
+      setDeleteConfirmId(null);
+    } catch (error: any) {
+      console.error("Error deleting infrastructure:", error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        title: "Delete Failed",
+        message: error.message || "Failed to delete infrastructure"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -682,6 +921,36 @@ const InfrastructureManagementTool: React.FC<
 
   return (
     <div className="fixed top-16 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 max-w-2xl z-40 max-h-[80vh] overflow-y-auto">
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/75 dark:bg-gray-800/75 flex items-center justify-center z-50 rounded-lg">
+          <div className="flex flex-col items-center">
+            <svg
+              className="animate-spin h-10 w-10 text-blue-600"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Loading...
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4 top-0 bg-white dark:bg-gray-800 pb-2">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
@@ -726,13 +995,13 @@ const InfrastructureManagementTool: React.FC<
       <div className="grid grid-cols-4 gap-2 mb-4">
         <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md text-center">
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-            {infrastructures.filter((i) => i.type === "POP").length}
+            {stats.pop_count}
           </div>
           <div className="text-xs text-gray-600 dark:text-gray-400">POPs</div>
         </div>
         <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md text-center">
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-            {infrastructures.filter((i) => i.type === "SubPOP").length}
+            {stats.subpop_count}
           </div>
           <div className="text-xs text-gray-600 dark:text-gray-400">
             SubPOPs
@@ -740,7 +1009,7 @@ const InfrastructureManagementTool: React.FC<
         </div>
         <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md text-center">
           <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-            {infrastructures.filter((i) => i.source === "KML").length}
+            {stats.kml_count}
           </div>
           <div className="text-xs text-gray-600 dark:text-gray-400">
             From KML
@@ -748,7 +1017,7 @@ const InfrastructureManagementTool: React.FC<
         </div>
         <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md text-center">
           <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-            {infrastructures.filter((i) => i.source === "Manual").length}
+            {stats.manual_count}
           </div>
           <div className="text-xs text-gray-600 dark:text-gray-400">Manual</div>
         </div>
@@ -758,7 +1027,8 @@ const InfrastructureManagementTool: React.FC<
       <div className="flex space-x-2 mb-4">
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 flex items-center justify-center"
+          disabled={isLoading}
+          className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
         >
           <svg
             className="w-4 h-4 mr-1"
@@ -794,12 +1064,14 @@ const InfrastructureManagementTool: React.FC<
             type="file"
             accept=".kml"
             onChange={handleKMLImport}
+            disabled={isLoading}
             className="hidden"
           />
         </label>
         <button
           onClick={() => setShowTable(!showTable)}
-          className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center"
+          disabled={isLoading}
+          className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 flex items-center justify-center"
         >
           <svg
             className="w-4 h-4 mr-1"
@@ -818,84 +1090,209 @@ const InfrastructureManagementTool: React.FC<
         </button>
       </div>
 
-      {/* Add Form */}
+      {/* Import Preview Modal */}
+      {showImportPreview && importSession && (
+        <div className="fixed top-12 inset-0 bg-black/50 flex items-center justify-center z-[100010]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Import Preview - {importSession.items.length} Items
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Review and select items to import. Regions auto-detected from
+                coordinates.
+              </p>
+            </div>
+
+            <div className="p-4">
+              {/* Select All */}
+              <div className="mb-3 flex items-center">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedImportIds.size === importSession.items.length
+                  }
+                  onChange={() => {
+                    if (selectedImportIds.size === importSession.items.length) {
+                      setSelectedImportIds(new Set());
+                    } else {
+                      setSelectedImportIds(
+                        new Set(importSession.items.map((i) => i.id))
+                      );
+                    }
+                  }}
+                  className="rounded border-gray-300 mr-2"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Select All ({selectedImportIds.size} selected)
+                </span>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {importSession.items.map((item) => (
+                  <div
+                    key={item.uniqueId}
+                    className="flex items-center p-3 border border-gray-200 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedImportIds.has(item.id)}
+                      onChange={() => {
+                        const newSet = new Set(selectedImportIds);
+                        if (newSet.has(item.id)) {
+                          newSet.delete(item.id);
+                        } else {
+                          newSet.add(item.id);
+                        }
+                        setSelectedImportIds(newSet);
+                      }}
+                      className="rounded border-gray-300 mr-3"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {item.name}
+                        </span>
+                        <span
+                          className={`px-2 py-1 rounded text-xs ${
+                            item.type === "POP"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          {item.type}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
+                        {item.detectedRegionId && " • Region detected"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4 flex justify-end space-x-2">
+              <button
+                onClick={handleCancelImport}
+                disabled={isLoading}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveImportedItems}
+                disabled={isLoading || selectedImportIds.size === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+              >
+                Save Selected ({selectedImportIds.size})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Form - COMPLETE VERSION with ALL Fields */}
       {showAddForm && (
-        <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-md space-y-3">
+        <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-md space-y-4 max-h-[70vh] overflow-y-auto">
           <h4 className="font-medium text-gray-900 dark:text-white mb-2">
-            Add New Infrastructure
+            Add New Infrastructure - Complete Form
           </h4>
 
-          {/* Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Type *
-            </label>
-            <select
-              value={formData.type}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  type: e.target.value as InfrastructureType
-                })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="POP">POP</option>
-              <option value="SubPOP">SubPOP</option>
-            </select>
+          {/* === SECTION 1: Basic Information === */}
+          <div className="space-y-3 border-b border-gray-300 dark:border-gray-600 pb-3">
+            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Basic Information
+            </h5>
+
+            {/* Type */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Type *
+                </label>
+                <select
+                  value={formData.type}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      type: e.target.value as InfrastructureType
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="POP">POP</option>
+                  <option value="SubPOP">SubPOP</option>
+                  <option value="Tower">Tower</option>
+                  <option value="Building">Building</option>
+                  <option value="Equipment">Equipment</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Status *
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData({ ...formData, status: e.target.value as any })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Maintenance">Maintenance</option>
+                  <option value="Planned">Planned</option>
+                  <option value="RFS">RFS</option>
+                  <option value="Damaged">Damaged</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Infrastructure Name *
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="e.g., Mumbai Central POP"
+              />
+            </div>
           </div>
 
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Name *
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
-              placeholder="e.g., Mumbai Central POP"
-            />
-          </div>
-
-          {/* Network ID */}
-          {/* <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Network ID *
-            </label>
-            <input
-              type="text"
-              value={formData.networkId}
-              onChange={(e) =>
-                setFormData({ ...formData, networkId: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
-              placeholder="e.g., NET-MUM-001"
-            />
-          </div> */}
-
-          {/* Location */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          {/* === SECTION 2: Location === */}
+          <div className="space-y-3 border-b border-gray-300 dark:border-gray-600 pb-3">
+            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Location *
-            </label>
+            </h5>
 
-            {/* Option 1: Click on Map */}
+            {/* Map Click Button */}
             <button
               onClick={() => setIsPlacingMarker(!isPlacingMarker)}
+              type="button"
               className={`w-full px-3 py-2 text-sm font-medium rounded-md ${
                 isPlacingMarker
                   ? "bg-blue-600 text-white"
                   : "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
               }`}
             >
-              {isPlacingMarker ? "Cancel Map Click" : "Click to Place on Map"}
+              {isPlacingMarker
+                ? "✓ Click Map to Set Location"
+                : "📍 Click to Place on Map"}
             </button>
 
-            {/* Divider */}
+            {/* OR Divider */}
             <div className="flex items-center">
               <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
               <span className="px-2 text-xs text-gray-500 dark:text-gray-400">
@@ -904,12 +1301,12 @@ const InfrastructureManagementTool: React.FC<
               <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
             </div>
 
-            {/* Option 2: Manual Entry */}
+            {/* Manual Coordinates */}
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
                 step="any"
-                placeholder="Latitude"
+                placeholder="Latitude *"
                 value={manualLat}
                 onChange={(e) => setManualLat(e.target.value)}
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
@@ -917,7 +1314,7 @@ const InfrastructureManagementTool: React.FC<
               <input
                 type="number"
                 step="any"
-                placeholder="Longitude"
+                placeholder="Longitude *"
                 value={manualLng}
                 onChange={(e) => setManualLng(e.target.value)}
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
@@ -925,171 +1322,194 @@ const InfrastructureManagementTool: React.FC<
             </div>
             <button
               onClick={handleManualCoordinates}
+              type="button"
               disabled={!manualLat || !manualLng}
-              className="w-full px-3 py-2 text-sm font-medium bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 text-sm font-medium bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/30 disabled:opacity-50"
             >
-              Set Manual Coordinates
+              Set Coordinates
             </button>
 
-            {/* Current Coordinates Display */}
+            {/* Current Location Display */}
             {newInfraLocation && (
               <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm text-green-700 dark:text-green-400 font-mono">
-                ✓ Location Set: {newInfraLocation.lat.toFixed(6)},{" "}
+                ✓ {newInfraLocation.lat.toFixed(6)},{" "}
                 {newInfraLocation.lng.toFixed(6)}
               </div>
             )}
-          </div>
 
-          {/* Contact */}
-          <div className="grid grid-cols-2 gap-2">
+            {/* Height */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Contact Name
+                Height (meters)
               </label>
               <input
-                type="text"
-                value={formData.contactName}
+                type="number"
+                step="any"
+                value={formData.height || ""}
                 onChange={(e) =>
-                  setFormData({ ...formData, contactName: e.target.value })
+                  setFormData({
+                    ...formData,
+                    height: parseFloat(e.target.value)
+                  })
                 }
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Contact Number
-              </label>
-              <input
-                type="text"
-                value={formData.contactNo}
-                onChange={(e) =>
-                  setFormData({ ...formData, contactNo: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="e.g., 45"
               />
             </div>
           </div>
 
-          {/* Address */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          {/* === SECTION 3: Address === */}
+          <div className="space-y-3 border-b border-gray-300 dark:border-gray-600 pb-3">
+            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Address
-            </label>
-            <input
-              type="text"
-              placeholder="Street"
-              value={formData.address?.street || ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  address: {
-                    ...formData.address,
-                    street: e.target.value,
-                    city: formData.address?.city || "",
-                    state: formData.address?.state || "",
-                    pincode: formData.address?.pincode || ""
+            </h5>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Street Address
+              </label>
+              <input
+                type="text"
+                value={formData.address?.street || ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    address: {
+                      ...formData.address,
+                      street: e.target.value
+                    } as any
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="Building, Street"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  City
+                </label>
+                <input
+                  type="text"
+                  value={formData.address?.city || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      address: {
+                        ...formData.address,
+                        city: e.target.value
+                      } as any
+                    })
                   }
-                })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
-            />
-            <div className="grid grid-cols-3 gap-2">
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                  placeholder="City"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  State
+                </label>
+                <input
+                  type="text"
+                  value={formData.address?.state || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      address: {
+                        ...formData.address,
+                        state: e.target.value
+                      } as any
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                  placeholder="State"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Pincode
+              </label>
               <input
                 type="text"
-                placeholder="City"
-                value={formData.address?.city || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    address: {
-                      ...formData.address,
-                      street: formData.address?.street || "",
-                      city: e.target.value,
-                      state: formData.address?.state || "",
-                      pincode: formData.address?.pincode || ""
-                    }
-                  })
-                }
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
-              />
-              <input
-                type="text"
-                placeholder="State"
-                value={formData.address?.state || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    address: {
-                      ...formData.address,
-                      street: formData.address?.street || "",
-                      city: formData.address?.city || "",
-                      state: e.target.value,
-                      pincode: formData.address?.pincode || ""
-                    }
-                  })
-                }
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Pincode"
                 value={formData.address?.pincode || ""}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
                     address: {
                       ...formData.address,
-                      street: formData.address?.street || "",
-                      city: formData.address?.city || "",
-                      state: formData.address?.state || "",
                       pincode: e.target.value
-                    }
+                    } as any
                   })
                 }
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="Pincode"
               />
             </div>
           </div>
 
-          {/* Reference Code */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Reference Code
-            </label>
-            <input
-              type="text"
-              value={formData.refCode || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, refCode: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
-              placeholder="e.g., REF-001"
-            />
+          {/* === SECTION 4: Contact Information === */}
+          <div className="space-y-3 border-b border-gray-300 dark:border-gray-600 pb-3">
+            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Contact Information
+            </h5>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Contact Person Name
+              </label>
+              <input
+                type="text"
+                value={formData.contactName || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, contactName: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="Contact person name"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={formData.contactNo || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, contactNo: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                  placeholder="+91 1234567890"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={formData.contactEmail || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, contactEmail: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                  placeholder="email@example.com"
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Status */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Status
-            </label>
-            <select
-              value={formData.status || "Active"}
-              onChange={(e) =>
-                setFormData({ ...formData, status: e.target.value as any })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="Maintenance">Maintenance</option>
-              <option value="Planned">Planned</option>
-              <option value="RFS">RFS</option>
-            </select>
-          </div>
+          {/* === SECTION 5: Rental Information === */}
+          <div className="space-y-3 border-b border-gray-300 dark:border-gray-600 pb-3">
+            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Rental Information
+            </h5>
 
-          {/* Rental Information */}
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
                 checked={formData.isRented || false}
@@ -1098,29 +1518,37 @@ const InfrastructureManagementTool: React.FC<
                 }
                 className="rounded border-gray-300"
               />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Is Rented
-              </span>
-            </label>
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                This infrastructure is rented
+              </label>
+            </div>
 
             {formData.isRented && (
-              <div className="space-y-2 pl-6">
-                <input
-                  type="number"
-                  placeholder="Rent Amount"
-                  value={formData.rentAmount || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      rentAmount: parseFloat(e.target.value)
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
-                />
+              <>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      Agreement Start
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Monthly Rent (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.rentAmount || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          rentAmount: parseFloat(e.target.value)
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                      placeholder="Amount"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Agreement Start Date
                     </label>
                     <input
                       type="date"
@@ -1135,17 +1563,17 @@ const InfrastructureManagementTool: React.FC<
                         setFormData({
                           ...formData,
                           agreementDates: {
-                            start: new Date(e.target.value),
-                            end: formData.agreementDates?.end || new Date()
-                          }
+                            ...formData.agreementDates,
+                            start: new Date(e.target.value)
+                          } as any
                         })
                       }
-                      className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-xs"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      Agreement End
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Agreement End Date
                     </label>
                     <input
                       type="date"
@@ -1160,61 +1588,143 @@ const InfrastructureManagementTool: React.FC<
                         setFormData({
                           ...formData,
                           agreementDates: {
-                            start: formData.agreementDates?.start || new Date(),
+                            ...formData.agreementDates,
                             end: new Date(e.target.value)
-                          }
+                          } as any
                         })
                       }
-                      className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-xs"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
                     />
                   </div>
                 </div>
-              </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Landlord Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.landlordName || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, landlordName: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                    placeholder="Landlord name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Landlord Contact
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.landlordContact || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        landlordContact: e.target.value
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                    placeholder="Landlord contact number"
+                  />
+                </div>
+              </>
             )}
           </div>
 
-          {/* Nature of Business */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Nature of Business
-            </label>
-            <input
-              type="text"
-              value={formData.natureOfBusiness || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, natureOfBusiness: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
-              placeholder="e.g., LBO, Enterprise"
-            />
+          {/* === SECTION 6: Owner & Business Information === */}
+          <div className="space-y-3 border-b border-gray-300 dark:border-gray-600 pb-3">
+            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Owner & Business
+            </h5>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Owner Name
+              </label>
+              <input
+                type="text"
+                value={formData.owner || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, owner: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="Owner name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Nature of Business
+              </label>
+              <input
+                type="text"
+                value={formData.natureOfBusiness || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, natureOfBusiness: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="E.g., Telecom, ISP, Data Center"
+              />
+            </div>
           </div>
 
-          {/* Structure Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Structure Type
-            </label>
-            <select
-              value={formData.structureType || "Tower"}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  structureType: e.target.value as any
-                })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="Tower">Tower</option>
-              <option value="Building">Building</option>
-              <option value="Ground">Ground</option>
-              <option value="Rooftop">Rooftop</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
+          {/* === SECTION 7: Technical Details === */}
+          <div className="space-y-3 border-b border-gray-300 dark:border-gray-600 pb-3">
+            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Technical Details
+            </h5>
 
-          {/* UPS & Backup */}
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Structure Type
+                </label>
+                <select
+                  value={formData.structureType || "Tower"}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      structureType: e.target.value as any
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="Tower">Tower</option>
+                  <option value="Building">Building</option>
+                  <option value="Ground">Ground</option>
+                  <option value="Rooftop">Rooftop</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Power Source
+                </label>
+                <select
+                  value={formData.powerSource || "Grid"}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      powerSource: e.target.value as any
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="Grid">Grid</option>
+                  <option value="Solar">Solar</option>
+                  <option value="Generator">Generator</option>
+                  <option value="Hybrid">Hybrid</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* UPS */}
+            <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
                 checked={formData.upsAvailability || false}
@@ -1226,33 +1736,96 @@ const InfrastructureManagementTool: React.FC<
                 }
                 className="rounded border-gray-300"
               />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                UPS Availability
-              </span>
-            </label>
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                UPS Available
+              </label>
+            </div>
 
-            <input
-              type="text"
-              placeholder="Backup Capacity (in KVA)"
-              value={formData.backupCapacity || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, backupCapacity: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
-            />
+            {formData.upsAvailability && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  UPS Capacity
+                </label>
+                <input
+                  type="text"
+                  value={formData.upsCapacity || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, upsCapacity: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                  placeholder="e.g., 10 KVA"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Backup Capacity
+              </label>
+              <input
+                type="text"
+                value={formData.backupCapacity || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, backupCapacity: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="e.g., 4 hours, 20 KVA"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Bandwidth
+              </label>
+              <input
+                type="text"
+                value={formData.bandwidth || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, bandwidth: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="e.g., 1 Gbps, 100 Mbps"
+              />
+            </div>
           </div>
 
-          {/* Buttons */}
+          {/* === SECTION 8: Additional Notes === */}
+          <div className="space-y-3 pb-3">
+            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Additional Information
+            </h5>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Notes
+              </label>
+              <textarea
+                value={formData.notes || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+                placeholder="Any additional notes or comments..."
+              />
+            </div>
+          </div>
+
+          {/* === Action Buttons === */}
           <div className="flex space-x-2 pt-2">
             <button
               onClick={resetForm}
-              className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
+              type="button"
+              disabled={isLoading}
+              className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleAddInfrastructure}
-              className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              type="button"
+              disabled={isLoading}
+              className="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
               Add Infrastructure
             </button>
@@ -1260,7 +1833,7 @@ const InfrastructureManagementTool: React.FC<
         </div>
       )}
 
-      {/* Table View */}
+      {/* Table View - Keeping existing table UI with backend data */}
       {showTable && (
         <div className="mb-4">
           {/* Filters */}
@@ -1309,7 +1882,8 @@ const InfrastructureManagementTool: React.FC<
               </span>
               <button
                 onClick={handleBulkDelete}
-                className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                disabled={isLoading}
+                className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
               >
                 Delete Selected
               </button>
@@ -1514,356 +2088,6 @@ const InfrastructureManagementTool: React.FC<
         </div>
       </div>
 
-      {/* View Detail Modal */}
-      {showViewModal && viewingInfra && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000]">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Infrastructure Details
-              </h3>
-              <button
-                onClick={() => {
-                  setShowViewModal(false);
-                  setViewingInfra(null);
-                }}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-4">
-              {/* Basic Information */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Name
-                  </label>
-                  <p className="text-sm text-gray-900 dark:text-white">
-                    {viewingInfra.name}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Type
-                  </label>
-                  <p className="text-sm">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        viewingInfra.type === "POP"
-                          ? "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
-                          : "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400"
-                      }`}
-                    >
-                      {viewingInfra.type}
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Unique ID
-                  </label>
-                  <p className="text-sm font-mono text-gray-900 dark:text-white">
-                    {viewingInfra.uniqueId}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Network ID
-                  </label>
-                  <p className="text-sm font-mono text-gray-900 dark:text-white">
-                    {viewingInfra.networkId}
-                  </p>
-                </div>
-                {viewingInfra.refCode && (
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Reference Code
-                    </label>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {viewingInfra.refCode}
-                    </p>
-                  </div>
-                )}
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Status
-                  </label>
-                  <p className="text-sm">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        viewingInfra.status === "Active"
-                          ? "bg-green-100 text-green-700"
-                          : viewingInfra.status === "Inactive"
-                          ? "bg-gray-100 text-gray-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      {viewingInfra.status}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Location */}
-              <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  Coordinates
-                </label>
-                <p className="text-sm font-mono text-gray-900 dark:text-white">
-                  {viewingInfra.coordinates.lat.toFixed(6)},{" "}
-                  {viewingInfra.coordinates.lng.toFixed(6)}
-                </p>
-              </div>
-
-              {/* Address */}
-              <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  Address
-                </label>
-                <p className="text-sm text-gray-900 dark:text-white">
-                  {viewingInfra.address.street &&
-                    `${viewingInfra.address.street}, `}
-                  {viewingInfra.address.city &&
-                    `${viewingInfra.address.city}, `}
-                  {viewingInfra.address.state &&
-                    `${viewingInfra.address.state} `}
-                  {viewingInfra.address.pincode}
-                </p>
-              </div>
-
-              {/* Contact Information */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Contact Name
-                  </label>
-                  <p className="text-sm text-gray-900 dark:text-white">
-                    {viewingInfra.contactName}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Contact Number
-                  </label>
-                  <p className="text-sm text-gray-900 dark:text-white">
-                    {viewingInfra.contactNo}
-                  </p>
-                </div>
-                {viewingInfra.contactEmail && (
-                  <div className="col-span-2">
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Email
-                    </label>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {viewingInfra.contactEmail}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Rental Information */}
-              {viewingInfra.isRented && (
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                    Rental Information
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    {viewingInfra.rentAmount && (
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                          Rent Amount
-                        </label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          ₹{viewingInfra.rentAmount}
-                        </p>
-                      </div>
-                    )}
-                    {viewingInfra.agreementDates && (
-                      <>
-                        <div>
-                          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            Agreement Start
-                          </label>
-                          <p className="text-sm text-gray-900 dark:text-white">
-                            {new Date(
-                              viewingInfra.agreementDates.start
-                            ).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            Agreement End
-                          </label>
-                          <p className="text-sm text-gray-900 dark:text-white">
-                            {new Date(
-                              viewingInfra.agreementDates.end
-                            ).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Technical Details */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                  Technical Details
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Structure Type
-                    </label>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {viewingInfra.structureType}
-                    </p>
-                  </div>
-                  {viewingInfra.natureOfBusiness && (
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                        Nature of Business
-                      </label>
-                      <p className="text-sm text-gray-900 dark:text-white">
-                        {viewingInfra.natureOfBusiness}
-                      </p>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      UPS Available
-                    </label>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {viewingInfra.upsAvailability ? "Yes" : "No"}
-                    </p>
-                  </div>
-                  {viewingInfra.backupCapacity && (
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                        Backup Capacity
-                      </label>
-                      <p className="text-sm text-gray-900 dark:text-white">
-                        {viewingInfra.backupCapacity}
-                      </p>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Power Source
-                    </label>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {viewingInfra.powerSource}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Metadata */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                  Metadata
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Source
-                    </label>
-                    <p className="text-sm">
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          viewingInfra.source === "KML"
-                            ? "bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400"
-                            : "bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400"
-                        }`}
-                      >
-                        {viewingInfra.source}
-                      </span>
-                    </p>
-                  </div>
-                  {viewingInfra.kmlFileName && (
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                        KML File
-                      </label>
-                      <p className="text-sm text-gray-900 dark:text-white">
-                        {viewingInfra.kmlFileName}
-                      </p>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Created On
-                    </label>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {new Date(viewingInfra.createdOn).toLocaleString()}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Updated On
-                    </label>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {new Date(viewingInfra.updatedOn).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes */}
-              {viewingInfra.notes && (
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Notes
-                  </label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">
-                    {viewingInfra.notes}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4 flex justify-end space-x-2">
-              <button
-                onClick={() => {
-                  navigateToInfra(viewingInfra);
-                  setShowViewModal(false);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-              >
-                View on Map
-              </button>
-              <button
-                onClick={() => {
-                  setShowViewModal(false);
-                  setViewingInfra(null);
-                }}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 text-sm"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Delete Confirmation Dialog */}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10001]">
@@ -1895,13 +2119,15 @@ const InfrastructureManagementTool: React.FC<
                 <div className="flex justify-end space-x-2">
                   <button
                     onClick={() => setDeleteConfirmId(null)}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 text-sm"
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 text-sm disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={confirmDelete}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm disabled:opacity-50"
                   >
                     Delete
                   </button>
