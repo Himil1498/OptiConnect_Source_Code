@@ -115,6 +115,24 @@ export interface ElevationProfile {
   username?: string;
 }
 
+export interface Infrastructure {
+  id?: number;
+  user_id?: number;
+  region_id?: number;
+  item_name: string;
+  item_type: string;
+  latitude: number;
+  longitude: number;
+  properties?: Record<string, any>;
+  notes?: string;
+  is_saved?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // Frontend fields
+  createdBy?: string;
+  username?: string;
+}
+
 export interface GISToolsFilters {
   userId?: number | 'all' | 'me';
   regionId?: number;
@@ -740,6 +758,109 @@ class ElevationProfileService {
   }
 }
 
+// ==================== INFRASTRUCTURE APIs ====================
+
+class InfrastructureService {
+  async getAll(filters?: GISToolsFilters): Promise<Infrastructure[]> {
+    try {
+      const params: Record<string, any> = {};
+
+      // Handle user filtering - send explicit filter parameter to backend
+      if (filters?.userId !== undefined) {
+        if (filters.userId === 'all') {
+          params.filter = 'all';
+          console.log('🔍 Infrastructure: Fetching ALL users data (filter=all)');
+        } else if (filters.userId === 'me') {
+          params.filter = 'me';
+          console.log('🔍 Infrastructure: Fetching MY data only (filter=me)');
+        } else {
+          params.filter = 'user';
+          params.userId = filters.userId;
+          console.log('🔍 Infrastructure: Fetching data for userId:', filters.userId, '(filter=user)');
+        }
+      }
+
+      if (filters?.regionId) params.regionId = filters.regionId;
+
+      console.log('📤 Infrastructure API request params:', params);
+
+      const response = await apiService.get<{ success: boolean; items: any[] }>(
+        '/infrastructure',
+        { params }
+      );
+
+      const raw = response.data.items || [];
+      const items: Infrastructure[] = raw.map((i: any) => ({
+        ...i,
+        latitude: Number(i.latitude),
+        longitude: Number(i.longitude),
+        properties: typeof i.properties === 'string' ? JSON.parse(i.properties) : i.properties,
+      }));
+
+      console.log('📥 Infrastructure API response count:', items.length);
+
+      return items;
+    } catch (error) {
+      console.error('Error fetching infrastructure items:', error);
+      return [];
+    }
+  }
+
+  async getById(id: number): Promise<Infrastructure | null> {
+    try {
+      const response = await apiService.get<{ success: boolean; item: Infrastructure }>(
+        `/infrastructure/${id}`
+      );
+      return response.data.item || null;
+    } catch (error) {
+      console.error('Error fetching infrastructure item:', error);
+      return null;
+    }
+  }
+
+  async create(data: Partial<Infrastructure>): Promise<Infrastructure | null> {
+    try {
+      const response = await apiService.post<{ success: boolean; item: Infrastructure }>(
+        '/infrastructure',
+        {
+          item_name: data.item_name,
+          item_type: data.item_type,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          region_id: data.region_id,
+          properties: data.properties,
+          notes: data.notes,
+          is_saved: true
+        }
+      );
+      return response.data.item || null;
+    } catch (error) {
+      console.error('Error creating infrastructure item:', error);
+      throw error;
+    }
+  }
+
+  async update(id: number, data: Partial<Infrastructure>): Promise<boolean> {
+    try {
+      await apiService.put(`/infrastructure/${id}`, data);
+      return true;
+    } catch (error) {
+      console.error('Error updating infrastructure item:', error);
+      return false;
+    }
+  }
+
+  async delete(id: number): Promise<boolean> {
+    try {
+      await apiService.delete(`/infrastructure/${id}`);
+      return true;
+    } catch (error) {
+      console.error('Error deleting infrastructure item:', error);
+      return false;
+    }
+  }
+}
+
 // ==================== COMBINED GIS TOOLS SERVICE ====================
 
 class GISToolsService {
@@ -748,6 +869,7 @@ class GISToolsService {
   circleDrawings = new CircleDrawingService();
   sectorRF = new SectorRFService();
   elevationProfiles = new ElevationProfileService();
+  infrastructure = new InfrastructureService();
 
   /**
    * Get all GIS data for a user (for Data Hub)
@@ -755,12 +877,13 @@ class GISToolsService {
    */
   async getAllUserData(filters?: GISToolsFilters) {
     try {
-      const [distances, polygons, circles, sectors, elevations] = await Promise.all([
+      const [distances, polygons, circles, sectors, elevations, infrastructures] = await Promise.all([
         this.distanceMeasurements.getAll(filters),
         this.polygonDrawings.getAll(filters),
         this.circleDrawings.getAll(filters),
         this.sectorRF.getAll(filters),
-        this.elevationProfiles.getAll(filters)
+        this.elevationProfiles.getAll(filters),
+        this.infrastructure.getAll(filters)
       ]);
 
       return {
@@ -769,7 +892,8 @@ class GISToolsService {
         circleDrawings: circles,
         sectorRF: sectors,
         elevationProfiles: elevations,
-        total: distances.length + polygons.length + circles.length + sectors.length + elevations.length
+        infrastructure: infrastructures,
+        total: distances.length + polygons.length + circles.length + sectors.length + elevations.length + infrastructures.length
       };
     } catch (error) {
       console.error('Error fetching all user GIS data:', error);
@@ -779,6 +903,7 @@ class GISToolsService {
         circleDrawings: [],
         sectorRF: [],
         elevationProfiles: [],
+        infrastructure: [],
         total: 0
       };
     }
@@ -815,6 +940,7 @@ class GISToolsService {
       const circleDrawings: CircleDrawing[] = [];
       const sectorRF: SectorRF[] = [];
       const elevationProfiles: ElevationProfile[] = [];
+      const infrastructure: Infrastructure[] = [];
 
       items.forEach((item: any) => {
         const type = item.type || item.Type || '';
@@ -865,7 +991,12 @@ class GISToolsService {
             });
             break;
           case 'Infrastructure':
-            // Not displayed on current Data Hub page sections, but keep mapping in case needed
+            infrastructure.push({
+              ...item,
+              latitude: Number(item.latitude),
+              longitude: Number(item.longitude),
+              properties: typeof item.properties === 'string' ? JSON.parse(item.properties) : item.properties,
+            });
             break;
           default:
             break;
@@ -878,7 +1009,8 @@ class GISToolsService {
         circleDrawings,
         sectorRF,
         elevationProfiles,
-        total: distanceMeasurements.length + polygonDrawings.length + circleDrawings.length + sectorRF.length + elevationProfiles.length
+        infrastructure,
+        total: distanceMeasurements.length + polygonDrawings.length + circleDrawings.length + sectorRF.length + elevationProfiles.length + infrastructure.length
       };
     } catch (error) {
       console.error('Error fetching aggregated GIS data:', error);
@@ -888,6 +1020,7 @@ class GISToolsService {
         circleDrawings: [],
         sectorRF: [],
         elevationProfiles: [],
+        infrastructure: [],
         total: 0
       };
     }
@@ -905,7 +1038,8 @@ class GISToolsService {
       polygonDrawings: data.polygonDrawings.length,
       circleDrawings: data.circleDrawings.length,
       sectorRF: data.sectorRF.length,
-      elevationProfiles: data.elevationProfiles.length
+      elevationProfiles: data.elevationProfiles.length,
+      infrastructure: data.infrastructure.length
     };
   }
 }
@@ -919,3 +1053,4 @@ export const polygonDrawingService = gisToolsService.polygonDrawings;
 export const circleDrawingService = gisToolsService.circleDrawings;
 export const sectorRFService = gisToolsService.sectorRF;
 export const elevationProfileService = gisToolsService.elevationProfiles;
+export const infrastructureService = gisToolsService.infrastructure;

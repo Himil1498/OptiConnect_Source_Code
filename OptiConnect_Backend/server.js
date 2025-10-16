@@ -53,7 +53,8 @@ const limiter = rateLimit({
       '/measurements/',
       '/drawings/',
       '/rf/',
-      '/elevation'
+      '/elevation',
+      '/infrastructure/'
     ];
     return skipPaths.some(path => req.path.includes(path));
   }

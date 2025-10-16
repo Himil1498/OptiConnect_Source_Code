@@ -113,8 +113,15 @@ const canAccessInfrastructure = async (userId, userRole, infraUserId, regionId) 
 const getAllInfrastructure = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userRole = req.user.role;
-    const { regionId, item_type, status, source, search } = req.query;
+    const userRole = (req.user.role || '').toLowerCase();
+    const { regionId, item_type, status, source, search, filter, userId: filterUserId } = req.query;
+
+    console.log('🏗️ Infrastructure getAllInfrastructure request:', {
+      userId,
+      userRole,
+      filter,
+      filterUserId
+    });
 
     let query = `
       SELECT i.*,
@@ -128,25 +135,46 @@ const getAllInfrastructure = async (req, res) => {
     `;
     const params = [];
 
-    // Role-based filtering
-    if (userRole === 'admin' || userRole === 'manager') {
-      // Admin/Manager can see all data
+    // Role-based filtering with explicit filter parameter support
+    if (filter === 'all' && (userRole === 'admin' || userRole === 'manager')) {
+      // Admin/Manager viewing ALL users' data
+      console.log('🏗️ Admin/Manager viewing ALL infrastructure data');
+    } else if (filter === 'user' && (userRole === 'admin' || userRole === 'manager') && filterUserId) {
+      // Admin/Manager viewing specific user's data
+      const parsedUserId = parseInt(filterUserId);
+      if (!isNaN(parsedUserId) && parsedUserId > 0) {
+        query += ' AND i.user_id = ?';
+        params.push(parsedUserId);
+        console.log('🏗️ Admin/Manager viewing user', parsedUserId);
+      } else {
+        console.log('⚠️ Invalid userId filter, defaulting to current user');
+        query += ' AND i.user_id = ?';
+        params.push(userId);
+      }
     } else {
-      // Regular users see only:
-      // 1. Their own data
-      // 2. Data from assigned regions
-      // 3. Data from temporary access regions
-      query += ` AND (
-        i.user_id = ?
-        OR i.region_id IN (
-          SELECT region_id FROM user_regions WHERE user_id = ?
-          UNION
-          SELECT resource_id FROM temporary_access
-          WHERE user_id = ? AND resource_type = 'region'
-          AND expires_at > NOW() AND revoked_at IS NULL
-        )
-      )`;
-      params.push(userId, userId, userId);
+      // Default: Users see only their own data
+      // Regular users or no specific filter
+      if (userRole === 'admin' || userRole === 'manager') {
+        // Admin/Manager without filter sees all data
+        console.log('🏗️ Admin/Manager viewing all data (no filter specified)');
+      } else {
+        // Regular users see only:
+        // 1. Their own data
+        // 2. Data from assigned regions
+        // 3. Data from temporary access regions
+        query += ` AND (
+          i.user_id = ?
+          OR i.region_id IN (
+            SELECT region_id FROM user_regions WHERE user_id = ?
+            UNION
+            SELECT resource_id FROM temporary_access
+            WHERE user_id = ? AND resource_type = 'region'
+            AND expires_at > NOW() AND revoked_at IS NULL
+          )
+        )`;
+        params.push(userId, userId, userId);
+        console.log('🏗️ Regular user viewing own data');
+      }
     }
 
     // Additional filters
@@ -182,9 +210,14 @@ const getAllInfrastructure = async (req, res) => {
 
     const [items] = await pool.query(query, params);
 
+    console.log('🏗️ Infrastructure getAllInfrastructure response:', {
+      count: items.length,
+      sampleItem: items[0] || null
+    });
+
     res.json({
       success: true,
-      data: items,
+      items: items,  // Changed from 'data' to 'items' to match frontend expectation
       count: items.length
     });
   } catch (error) {
